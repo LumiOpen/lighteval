@@ -3,7 +3,7 @@ name:
 mGPQA
 
 dataset:
-dzautner/mGPQA
+LumiOpen/mGPQA
 
 abstract:
 Multilingual GPQA Diamond is a translated version of GPQA Diamond,
@@ -91,8 +91,7 @@ mgpqa_diamond_fi = LightevalTaskConfig(
     sample_fields=record_to_sample_fi,
     solver=[multiple_choice(cache=True)],
     scorer=choice(),
-    hf_repo="dzautner/mGPQA",
-    hf_data_files={"train": "fi_diamond.json"},
+    hf_repo="LumiOpen/mGPQA",
     hf_subset="default",
     hf_avail_splits=["train"],
     evaluation_splits=["train"],
