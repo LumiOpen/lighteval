@@ -36,15 +36,14 @@ from lighteval.tasks.requests import Doc
 # Prompt template adapted from AIME task
 # Note: Uses English instructions for consistency with AIME
 MATH_PROMPT_TEMPLATE = dedent("""
-Solve the following math problem efficiently and clearly.  
-The last line of your response should be of the following format: 
-'Therefore, the final answer is: $\\boxed{{ANSWER}}$. I hope it is correct' 
-(without quotes) where ANSWER is just the final number or expression 
+Solve the following math problem efficiently and clearly.
+The last line of your response should be of the following format:
+'Therefore, the final answer is: $\\boxed{{ANSWER}}$. I hope it is correct'
+(without quotes) where ANSWER is just the final number or expression
 that solves the problem. Think step by step before answering.
 
 {prompt}
 """)
-
 
 
 def record_to_sample(record):
