@@ -125,8 +125,7 @@ lighteval eval vllm/$MODEL $TASK \
     --top-p $TOP_P \
     --epochs $EPOCHS \
     --epochs-reducer mean \
-    --max-tokens $MAX_TOKENS \
-    --max-samples 5
+    --max-tokens $MAX_TOKENS
 
 EVAL_EXIT_CODE=$?
 
