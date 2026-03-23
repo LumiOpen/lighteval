@@ -20,8 +20,10 @@ paper:
 https://arxiv.org/abs/2305.20050
 """
 
+import os
+
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model import get_model
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, prompt_template
 
@@ -37,10 +39,23 @@ Solve the following problem. The final line of your response MUST be of the foll
 {prompt}
 """.strip()
 
-SCORER_MODEL = get_model(
-    "vllm/Qwen/Qwen3.5-9B",
-    config=GenerateConfig(reasoning_tokens=0),
-)
+
+def _get_scorer_model():
+    """Resolve the scorer model from environment variables if available.
+
+    When SCORER_MODEL_BASE_URL is set (e.g. by the eval harness which starts
+    a dedicated scorer vLLM server), connect to it via the OpenAI-compatible
+    API. Otherwise return None so model_graded_fact uses the eval model.
+    """
+    base_url = os.environ.get("SCORER_MODEL_BASE_URL")
+    if base_url:
+        model_name = os.environ.get("SCORER_MODEL_PATH", "Qwen/Qwen3.5-9B")
+        return get_model(
+            f"openai-api/scorer/{model_name}",
+            base_url=base_url,
+            api_key=os.environ.get("VLLM_API_KEY", "inspectai"),
+        )
+    return None
 
 
 def mmath500_prompt(line, task_name: str = None):
@@ -75,7 +90,7 @@ mmath500_fi = LightevalTaskConfig(
     version=1,
     sample_fields=record_to_sample,
     solver=[prompt_template(MATH_QUERY_TEMPLATE), generate(cache=True)],
-    scorer=model_graded_fact(model=SCORER_MODEL),
+    scorer=model_graded_fact(model=_get_scorer_model()),
 )
 
 TASKS_TABLE = [
