@@ -32,12 +32,14 @@ from lighteval.tasks.lighteval_task import LightevalTaskConfig
 from lighteval.tasks.requests import Doc
 
 
-MATH_QUERY_TEMPLATE = """
-Solve the following problem. The final line of your response MUST be of the following format:
-"ANSWER: $ANSWER" (without quotes) where $ANSWER is the final answer. Think step by step before answering.
+MATH_QUERY_TEMPLATES = {
+    "fi": """
+Ratkaise seuraava tehtävä. Vastauksesi viimeisen rivin TÄYTYY olla seuraavassa muodossa:
+"ANSWER: $ANSWER" (ilman lainausmerkkejä), jossa $ANSWER on lopullinen vastaus. Ajattele vaiheittain ennen vastaamista.
 
 {prompt}
-""".strip()
+""".strip(),
+}
 
 
 def _get_scorer_model():
@@ -58,14 +60,19 @@ def _get_scorer_model():
     return None
 
 
-def mmath500_prompt(line, task_name: str = None):
-    query = MATH_QUERY_TEMPLATE.format(prompt=line["problem"])
-    return Doc(
-        task_name=task_name,
-        query=query,
-        choices=[f"ANSWER: {line['answer']}"],
-        gold_index=0,
-    )
+def _mmath500_prompt_fn(lang: str):
+    template = MATH_QUERY_TEMPLATES[lang]
+
+    def mmath500_prompt(line, task_name: str = None):
+        query = template.format(prompt=line["problem"])
+        return Doc(
+            task_name=task_name,
+            query=query,
+            choices=[f"ANSWER: {line['answer']}"],
+            gold_index=0,
+        )
+
+    return mmath500_prompt
 
 
 def record_to_sample(record):
@@ -76,7 +83,7 @@ def record_to_sample(record):
 
 mmath500_fi = LightevalTaskConfig(
     name="mmath500:fi",
-    prompt_function=mmath500_prompt,
+    prompt_function=_mmath500_prompt_fn("fi"),
     hf_repo="LumiOpen/MATH-500_mt",
     hf_subset="default",
     hf_avail_splits=["fi"],
@@ -89,7 +96,7 @@ mmath500_fi = LightevalTaskConfig(
     ],
     version=1,
     sample_fields=record_to_sample,
-    solver=[prompt_template(MATH_QUERY_TEMPLATE), generate(cache=True)],
+    solver=[prompt_template(MATH_QUERY_TEMPLATES["fi"]), generate(cache=True)],
     scorer=model_graded_fact(model=_get_scorer_model()),
 )
 

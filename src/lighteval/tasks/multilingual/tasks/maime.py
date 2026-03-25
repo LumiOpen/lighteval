@@ -33,38 +33,52 @@ from lighteval.tasks.lighteval_task import LightevalTaskConfig
 from lighteval.tasks.requests import Doc
 
 
-# Prompt template adapted from AIME task
-# Note: Uses English instructions for consistency with AIME
-MATH_PROMPT_TEMPLATE = dedent("""
-Solve the following math problem efficiently and clearly.
-The last line of your response should be of the following format:
-'Therefore, the final answer is: $\\boxed{{ANSWER}}$. I hope it is correct'
-(without quotes) where ANSWER is just the final number or expression
-that solves the problem. Think step by step before answering.
+# Per-language prompt templates
+MATH_PROMPT_TEMPLATES = {
+    "fi": dedent("""
+Ratkaise seuraava matemaattinen tehtävä tehokkaasti ja selkeästi.
+Vastauksesi viimeisen rivin tulee olla seuraavassa muodossa:
+'Näin ollen lopullinen vastaus on: $\\boxed{{ANSWER}}$. Toivottavasti se on oikein'
+(ilman lainausmerkkejä), jossa ANSWER on pelkästään lopullinen luku tai lauseke,
+joka ratkaisee tehtävän. Ajattele vaiheittain ennen vastaamista.
 
 {prompt}
-""")
+"""),
+    "da": dedent("""
+Løs følgende matematiske problem korrekt og effektivt.
+Den sidste linje i dit svar skal være i følgende format:
+'Derfor er det endelige svar: $\\boxed{{ANSWER}}$. Jeg håber, det er korrekt'
+(uden anførselstegn), hvor ANSWER kun er den endelige løsning. Tænk trin for trin, før du svarer.
+
+{prompt}
+"""),
+}
 
 
 def record_to_sample(record):
     return Sample(input=record["question"], target=record["solution"])
 
 
-def maime_prompt(line, task_name: str = None):
-    return Doc(
-        task_name=task_name,
-        query=MATH_PROMPT_TEMPLATE.format(prompt=line["question"]),
-        choices=[line["solution"]],
-        gold_index=0,
-    )
+def _maime_prompt_fn(lang: str):
+    template = MATH_PROMPT_TEMPLATES[lang]
+
+    def maime_prompt(line, task_name: str = None):
+        return Doc(
+            task_name=task_name,
+            query=template.format(prompt=line["question"]),
+            choices=[line["solution"]],
+            gold_index=0,
+        )
+
+    return maime_prompt
 
 
 # Danish tasks
 maime25_da = LightevalTaskConfig(
     name="maime25:da",
-    prompt_function=maime_prompt,
+    prompt_function=_maime_prompt_fn("da"),
     sample_fields=record_to_sample,
-    solver=[prompt_template(MATH_PROMPT_TEMPLATE), generate(cache=True)],
+    solver=[prompt_template(MATH_PROMPT_TEMPLATES["da"]), generate(cache=True)],
     scorer=math_scorer(),
     hf_repo="LumiOpen/mAIME2025",
     hf_subset="da_combined",
@@ -82,7 +96,7 @@ maime25_da = LightevalTaskConfig(
 
 maime25_da_avg = LightevalTaskConfig(
     name="maime25_avg:da",
-    prompt_function=maime_prompt,
+    prompt_function=_maime_prompt_fn("da"),
     sample_fields=record_to_sample,
     hf_repo="LumiOpen/mAIME2025",
     hf_subset="da_combined",
@@ -97,7 +111,7 @@ maime25_da_avg = LightevalTaskConfig(
 
 maime25_da_gpassk = LightevalTaskConfig(
     name="maime25_gpassk:da",
-    prompt_function=maime_prompt,
+    prompt_function=_maime_prompt_fn("da"),
     sample_fields=record_to_sample,
     hf_repo="LumiOpen/mAIME2025",
     hf_subset="da_combined",
@@ -113,9 +127,9 @@ maime25_da_gpassk = LightevalTaskConfig(
 # Finnish tasks
 maime25_fi = LightevalTaskConfig(
     name="maime25:fi",
-    prompt_function=maime_prompt,
+    prompt_function=_maime_prompt_fn("fi"),
     sample_fields=record_to_sample,
-    solver=[prompt_template(MATH_PROMPT_TEMPLATE), generate(cache=True)],
+    solver=[prompt_template(MATH_PROMPT_TEMPLATES["fi"]), generate(cache=True)],
     scorer=math_scorer(),
     hf_repo="LumiOpen/mAIME2025",
     hf_subset="fi_combined",
@@ -133,7 +147,7 @@ maime25_fi = LightevalTaskConfig(
 
 maime25_fi_avg = LightevalTaskConfig(
     name="maime25_avg:fi",
-    prompt_function=maime_prompt,
+    prompt_function=_maime_prompt_fn("fi"),
     sample_fields=record_to_sample,
     hf_repo="LumiOpen/mAIME2025",
     hf_subset="fi_combined",
@@ -148,7 +162,7 @@ maime25_fi_avg = LightevalTaskConfig(
 
 maime25_fi_gpassk = LightevalTaskConfig(
     name="maime25_gpassk:fi",
-    prompt_function=maime_prompt,
+    prompt_function=_maime_prompt_fn("fi"),
     sample_fields=record_to_sample,
     hf_repo="LumiOpen/mAIME2025",
     hf_subset="fi_combined",
