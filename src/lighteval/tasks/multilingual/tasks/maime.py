@@ -40,16 +40,15 @@ Ratkaise seuraava matemaattinen tehtävä tehokkaasti ja selkeästi.
 Vastauksesi viimeisen rivin tulee olla seuraavassa muodossa:
 'Näin ollen lopullinen vastaus on: $\\boxed{{ANSWER}}$. Toivottavasti se on oikein'
 (ilman lainausmerkkejä), jossa ANSWER on pelkästään lopullinen luku tai lauseke,
-joka ratkaisee tehtävän. Ajattele vaihe vaiheelta ennen vastaamista.
+joka ratkaisee tehtävän. Ajattele vaiheittain ennen vastaamista.
 
 {prompt}
 """),
     "da": dedent("""
-Løs følgende matematiske problem effektivt og tydeligt.
+Løs følgende matematiske problem korrekt og effektivt.
 Den sidste linje i dit svar skal være i følgende format:
 'Derfor er det endelige svar: $\\boxed{{ANSWER}}$. Jeg håber, det er korrekt'
-(uden anførselstegn), hvor ANSWER kun er det endelige tal eller udtryk,
-der løser problemet. Tænk trin for trin, før du svarer.
+(uden anførselstegn), hvor ANSWER kun er den endelige løsning. Tænk trin for trin, før du svarer.
 
 {prompt}
 """),
