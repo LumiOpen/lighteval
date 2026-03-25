@@ -432,10 +432,17 @@ def eval(  # noqa C901
             rich_help_panel=HELP_PANEL_NAME_4,
         ),
     ] = False,
+    load_multilingual: Annotated[
+        bool,
+        Option(
+            help="Whether to load multilingual tasks from the multilingual tasks directory.",
+            rich_help_panel=HELP_PANEL_NAME_2,
+        ),
+    ] = False,
 ):
     from lighteval.tasks.registry import Registry
 
-    registry = Registry(tasks=tasks, custom_tasks=None, load_multilingual=False)
+    registry = Registry(tasks=tasks, custom_tasks=custom_tasks, load_multilingual=load_multilingual)
     task_configs = registry.task_to_configs
     inspect_ai_tasks = []
 
