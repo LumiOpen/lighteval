@@ -54,6 +54,7 @@ Den sidste linje i dit svar skal være i følgende format:
 """),
 }
 
+
 def record_to_sample(record):
     return Sample(input=record["question"], target=record["solution"])
 
