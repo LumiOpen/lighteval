@@ -23,7 +23,7 @@ https://arxiv.org/abs/2305.20050
 import os
 
 from inspect_ai.dataset import Sample
-from inspect_ai.model import get_model
+from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, prompt_template
 
@@ -54,6 +54,9 @@ def _get_scorer_model():
         model_name = os.environ.get("SCORER_MODEL_PATH", "Qwen/Qwen3.5-9B")
         return get_model(
             f"openai-api/scorer/{model_name}",
+            config=GenerateConfig(
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            ),
             base_url=base_url,
             api_key=os.environ.get("VLLM_API_KEY", "inspectai"),
         )
