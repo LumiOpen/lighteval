@@ -22,13 +22,38 @@ starred:
 true
 """
 
+import os
+import warnings
+
+warnings.warn(
+    "math_500 is deprecated, use mmath500:en instead (supports configurable scorer model)",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from inspect_ai.dataset import Sample
+from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, prompt_template
 
 from lighteval.metrics.metrics import Metrics
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
 from lighteval.tasks.requests import Doc
+
+
+def _get_scorer_model():
+    base_url = os.environ.get("SCORER_MODEL_BASE_URL")
+    if base_url:
+        model_name = os.environ.get("SCORER_MODEL_PATH", "Qwen/Qwen3.5-9B")
+        return get_model(
+            f"openai-api/scorer/{model_name}",
+            config=GenerateConfig(
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            ),
+            base_url=base_url,
+            api_key=os.environ.get("VLLM_API_KEY", "inspectai"),
+        )
+    return None
 
 
 MATH_QUERY_TEMPLATE = """
@@ -71,7 +96,7 @@ math_500 = LightevalTaskConfig(
     version=2,
     sample_fields=record_to_sample,
     solver=[prompt_template(MATH_QUERY_TEMPLATE), generate(cache=True)],
-    scorer=model_graded_fact(),
+    scorer=model_graded_fact(model=_get_scorer_model()),
 )
 
 TASKS_TABLE = [
