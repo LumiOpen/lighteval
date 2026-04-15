@@ -6,12 +6,13 @@ dataset:
 LumiOpen/MATH-500_mt
 
 abstract:
-Multilingual translations of the MATH-500 benchmark, a subset of 500 problems
-from the MATH benchmark that OpenAI created in their Let's Verify Step by Step
-paper. Currently contains Finnish translations produced with Claude Opus 4.5.
+Multilingual MATH-500 benchmark, a subset of 500 problems from the MATH
+benchmark that OpenAI created in their Let's Verify Step by Step paper.
+Contains the original English problems and Finnish translations produced
+with Claude Opus 4.5. Supports configurable scorer model via env vars.
 
 languages:
-finnish
+english, finnish
 
 tags:
 math, reasoning, multilingual
@@ -33,6 +34,12 @@ from lighteval.tasks.requests import Doc
 
 
 MATH_QUERY_TEMPLATES = {
+    "en": """
+Solve the following problem. The final line of your response MUST be of the following format:
+"ANSWER: $ANSWER" (without quotes) where $ANSWER is the final answer. Think step by step before answering.
+
+{prompt}
+""".strip(),
     "fi": """
 Ratkaise seuraava tehtävä. Vastauksesi viimeisen rivin TÄYTYY olla seuraavassa muodossa:
 "ANSWER: $ANSWER" (ilman lainausmerkkejä), jossa $ANSWER on lopullinen vastaus. Ajattele vaiheittain ennen vastaamista.
@@ -84,6 +91,25 @@ def record_to_sample(record):
     return Sample(input=query, target=target)
 
 
+mmath500_en = LightevalTaskConfig(
+    name="mmath500:en",
+    prompt_function=_mmath500_prompt_fn("en"),
+    hf_repo="HuggingFaceH4/MATH-500",
+    hf_subset="default",
+    hf_avail_splits=["test"],
+    evaluation_splits=["test"],
+    few_shots_split=None,
+    few_shots_select=None,
+    generation_size=32768,
+    metrics=[
+        Metrics.pass_at_k_math(sample_params={"k": 1, "n": 1}),
+    ],
+    version=1,
+    sample_fields=record_to_sample,
+    solver=[prompt_template(MATH_QUERY_TEMPLATES["en"]), generate(cache=True)],
+    scorer=model_graded_fact(model=_get_scorer_model()),
+)
+
 mmath500_fi = LightevalTaskConfig(
     name="mmath500:fi",
     prompt_function=_mmath500_prompt_fn("fi"),
@@ -104,5 +130,6 @@ mmath500_fi = LightevalTaskConfig(
 )
 
 TASKS_TABLE = [
+    mmath500_en,
     mmath500_fi,
 ]
