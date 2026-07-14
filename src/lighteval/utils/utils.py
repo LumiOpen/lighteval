@@ -276,7 +276,11 @@ def safe_divide(numerator: np.ndarray, denominator: float, default_value: float 
     return np.where(denominator != 0, numerator / denominator, default_value)
 
 
-def remove_reasoning_tags(text: str, tag_pairs: list[tuple[str, str]]) -> str:
+def remove_reasoning_tags(
+    text: str,
+    tag_pairs: list[tuple[str, str]],
+    strip_unclosed_prefix: bool = False,
+) -> str:
     """Removes all instances of reasoning tag pairs from text.
 
     Iteratively removes content between specified start and end tag pairs.
@@ -288,6 +292,10 @@ def remove_reasoning_tags(text: str, tag_pairs: list[tuple[str, str]]) -> str:
     Args:
         text (str): The input text containing reasoning tags to remove.
         tag_pairs (list[tuple[str, str]]): List of (start_tag, end_tag) pairs to remove.
+        strip_unclosed_prefix (bool): If true, also remove a leading reasoning
+            prefix that has no start tag in the generated text but ends with an
+            end tag. This handles chat templates that put the opening reasoning
+            tag in the assistant prompt.
 
     Returns:
         str: The text with all reasoning tag content removed.
@@ -306,6 +314,12 @@ def remove_reasoning_tags(text: str, tag_pairs: list[tuple[str, str]]) -> str:
     result = text
 
     for start_tag, end_tag in tag_pairs:
+        if strip_unclosed_prefix:
+            end = result.find(end_tag)
+            start = result.find(start_tag)
+            if end != -1 and (start == -1 or end < start):
+                result = result[end + len(end_tag) :].lstrip()
+
         while start_tag in result and end_tag in result:
             start = result.find(start_tag)
             end = result.find(end_tag, start)
