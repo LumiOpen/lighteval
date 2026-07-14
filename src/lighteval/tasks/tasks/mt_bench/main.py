@@ -94,4 +94,6 @@ task = LightevalTaskConfig(
 )
 
 
-TASKS_TABLE = [task]
+from lighteval.tasks.tasks.mt_bench.main_inspect import TASKS_TABLE as _INSPECT_TASKS
+
+TASKS_TABLE = [task] + _INSPECT_TASKS
