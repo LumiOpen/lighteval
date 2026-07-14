@@ -114,6 +114,9 @@ def _parse_reasoning_tags(reasoning_tags: str | list[tuple[str, str]]) -> list[t
                 f"Got {reasoning_tags} instead, which caused parsing error {e}."
             ) from e
 
+    if len(reasoning_tags) == 2 and all(isinstance(tag, str) for tag in reasoning_tags):
+        reasoning_tags = [tuple(reasoning_tags)]
+
     if not all(isinstance(tag, tuple) and len(tag) == 2 for tag in reasoning_tags):
         raise ValueError(
             "reasoning_tags must be a list of pair tuples, e.g. [('start_tag', 'end_tag'), ...]. "
