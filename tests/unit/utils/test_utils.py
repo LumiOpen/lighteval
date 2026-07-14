@@ -68,8 +68,14 @@ class TestRemoveReasoningTags(unittest.TestCase):
         result = remove_reasoning_tags(text, tag_pairs)
         self.assertEqual(result, " Answer section")
 
-    def test_unclosed_reasoning_prefix_preserved_by_default(self):
+    def test_unopened_reasoning_prefix_removed_by_default(self):
         text = "Reasoning section. </think> Answer section"
         tag_pairs = [("<think>", "</think>")]
         result = remove_reasoning_tags(text, tag_pairs)
-        self.assertEqual(result, "Reasoning section. </think> Answer section")
+        self.assertEqual(result, " Answer section")
+
+    def test_unopened_reasoning_prefix_and_complete_tags_removed(self):
+        text = "First thought </think> Answer <think> second thought </think> Final"
+        tag_pairs = [("<think>", "</think>")]
+        result = remove_reasoning_tags(text, tag_pairs)
+        self.assertEqual(result, " Answer  Final")

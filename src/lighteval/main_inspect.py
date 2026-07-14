@@ -23,13 +23,23 @@
 import ast
 import logging
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Literal
+from functools import wraps
+from typing import Any, Literal
 
 import requests
 from huggingface_hub import HfApi
 from inspect_ai import Epochs, Task, task
 from inspect_ai import eval_set as inspect_ai_eval_set
+from inspect_ai._util.registry import (
+    has_registry_params,
+    is_registry_object,
+    registry_info,
+    registry_params,
+    set_registry_info,
+    set_registry_params,
+)
 from inspect_ai.dataset import hf_dataset
 from inspect_ai.log import bundle_log_dir
 from inspect_ai.scorer import exact
@@ -47,6 +57,9 @@ from lighteval.utils.utils import remove_reasoning_tags as strip_reasoning_tags
 
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_REASONING_TAGS = [("<think>", "</think>")]
 
 
 @task
@@ -72,14 +85,17 @@ def get_inspect_ai_task(
     dataset = hf_dataset(dataset_repo, name=dataset_subset, split=dataset_split, sample_fields=sample_fields)
     if lighteval_task_config.filter is not None:
         dataset = dataset.filter(lighteval_task_config.filter)
+    tag_pairs = reasoning_tags or DEFAULT_REASONING_TAGS
     solver_steps = list(lighteval_task_config.solver) if lighteval_task_config.solver else [generate(cache=True)]
     if remove_reasoning_tags:
         solver_steps.append(
             reasoning_tag_postprocessor(
-                tag_pairs=reasoning_tags or [("<think>", "</think>")],
+                tag_pairs=tag_pairs,
             )
         )
     scorers = lighteval_task_config.scorer or exact()
+    if remove_reasoning_tags:
+        scorers = _wrap_reasoning_tag_scorers(scorers, tag_pairs=tag_pairs)
     # TODO: have per task epoch and epoch reducer
 
     if lighteval_task_config.num_fewshots > 0:
@@ -129,14 +145,95 @@ def reasoning_tag_postprocessor(
     tag_pairs: list[tuple[str, str]],
 ):
     async def solve(state, generate_fn):
-        if getattr(state, "output", None) is not None and getattr(state.output, "completion", None):
-            state.output.completion = strip_reasoning_tags(
-                state.output.completion,
-                tag_pairs=tag_pairs,
-            )
-        return state
+        return _strip_state_reasoning(state, tag_pairs=tag_pairs)
 
     return solve
+
+
+def _strip_state_reasoning(state: Any, tag_pairs: list[tuple[str, str]]):
+    for message in getattr(state, "messages", []) or []:
+        _strip_message_reasoning(message, tag_pairs=tag_pairs)
+
+    output = getattr(state, "output", None)
+    if output is not None:
+        _strip_model_output_reasoning(output, tag_pairs=tag_pairs)
+
+    return state
+
+
+def _strip_model_output_reasoning(output: Any, tag_pairs: list[tuple[str, str]]) -> None:
+    completion = getattr(output, "completion", None)
+    if isinstance(completion, str):
+        output.completion = strip_reasoning_tags(completion, tag_pairs=tag_pairs)
+
+    for choice in getattr(output, "choices", []) or []:
+        _strip_message_reasoning(getattr(choice, "message", None), tag_pairs=tag_pairs)
+
+
+def _strip_message_reasoning(message: Any, tag_pairs: list[tuple[str, str]]) -> None:
+    if getattr(message, "role", None) != "assistant":
+        return
+
+    text = getattr(message, "text", None)
+    if isinstance(text, str):
+        message.text = strip_reasoning_tags(text, tag_pairs=tag_pairs)
+        return
+
+    content = getattr(message, "content", None)
+    if isinstance(content, str):
+        message.content = strip_reasoning_tags(content, tag_pairs=tag_pairs)
+
+
+def _wrap_reasoning_tag_scorers(scorers: Any, tag_pairs: list[tuple[str, str]]):
+    if isinstance(scorers, Sequence) and not isinstance(scorers, str | bytes):
+        return [_wrap_reasoning_tag_scorer(scorer, tag_pairs=tag_pairs) for scorer in scorers]
+
+    return _wrap_reasoning_tag_scorer(scorers, tag_pairs=tag_pairs)
+
+
+def _wrap_reasoning_tag_scorer(scorer: Any, tag_pairs: list[tuple[str, str]]):
+    if not callable(scorer) or is_registry_object(scorer, type="scanner"):
+        return scorer
+
+    @wraps(scorer)
+    async def score(state, target):
+        result = await scorer(state, target)
+        return _strip_score_reasoning(result, tag_pairs=tag_pairs)
+
+    if is_registry_object(scorer, type="scorer"):
+        set_registry_info(score, registry_info(scorer))
+        if has_registry_params(scorer):
+            set_registry_params(score, dict(registry_params(scorer)))
+
+    return score
+
+
+def _strip_score_reasoning(score: Any, tag_pairs: list[tuple[str, str]]):
+    if score is None:
+        return None
+
+    for field in ("answer", "explanation"):
+        value = getattr(score, field, None)
+        if isinstance(value, str):
+            setattr(score, field, strip_reasoning_tags(value, tag_pairs=tag_pairs))
+
+    for field in ("value", "metadata"):
+        if hasattr(score, field):
+            setattr(score, field, _strip_reasoning_value(getattr(score, field), tag_pairs=tag_pairs))
+
+    return score
+
+
+def _strip_reasoning_value(value: Any, tag_pairs: list[tuple[str, str]]):
+    if isinstance(value, str):
+        return strip_reasoning_tags(value, tag_pairs=tag_pairs)
+    if isinstance(value, list):
+        return [_strip_reasoning_value(item, tag_pairs=tag_pairs) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_strip_reasoning_value(item, tag_pairs=tag_pairs) for item in value)
+    if isinstance(value, Mapping):
+        return {key: _strip_reasoning_value(item, tag_pairs=tag_pairs) for key, item in value.items()}
+    return value
 
 
 def push_to_hub(bundle_dir: str, repo_id: str, public: bool = False):
