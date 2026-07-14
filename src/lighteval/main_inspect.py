@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import ast
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -32,14 +33,17 @@ from inspect_ai import eval_set as inspect_ai_eval_set
 from inspect_ai.dataset import hf_dataset
 from inspect_ai.log import bundle_log_dir
 from inspect_ai.scorer import exact
-from inspect_ai.solver import generate, system_message
+from inspect_ai.solver import generate, solver, system_message
 from pytablewriter import MarkdownTableWriter
 from typer import Argument, Option
 from typing_extensions import Annotated
 
 from lighteval.cli_args import load_tasks_multilingual as load_tasks_multilingual_arg
+from lighteval.cli_args import reasoning_tags as reasoning_tags_arg
+from lighteval.cli_args import remove_reasoning_tags as remove_reasoning_tags_arg
 from lighteval.models.abstract_model import InspectAIModelConfig
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
+from lighteval.utils.utils import remove_reasoning_tags as strip_reasoning_tags
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,8 @@ def get_inspect_ai_task(
     lighteval_task_config: LightevalTaskConfig,
     epochs: int = 1,
     epochs_reducer: Literal["mean", "median", "mode", "max", "at_least_{n}", "pass_at_{k}"] | None = None,
+    remove_reasoning_tags: bool = True,
+    reasoning_tags: list[tuple[str, str]] | None = None,
 ) -> Task:
     name = lighteval_task_config.name
     sample_fields = lighteval_task_config.sample_fields
@@ -66,9 +72,13 @@ def get_inspect_ai_task(
     dataset = hf_dataset(dataset_repo, name=dataset_subset, split=dataset_split, sample_fields=sample_fields)
     if lighteval_task_config.filter is not None:
         dataset = dataset.filter(lighteval_task_config.filter)
-    solver = lighteval_task_config.solver or [
-        generate(cache=True),
-    ]
+    solver_steps = list(lighteval_task_config.solver) if lighteval_task_config.solver else [generate(cache=True)]
+    if remove_reasoning_tags:
+        solver_steps.append(
+            reasoning_tag_postprocessor(
+                tag_pairs=reasoning_tags or [("<think>", "</think>")],
+            )
+        )
     scorers = lighteval_task_config.scorer or exact()
     # TODO: have per task epoch and epoch reducer
 
@@ -84,12 +94,49 @@ def get_inspect_ai_task(
             seed=42,
             limit=lighteval_task_config.num_fewshots,
         )
-        solver.insert(
+        solver_steps.insert(
             0,
             system_message("\n\n".join([lighteval_task_config.sample_to_fewshot(sample) for sample in fewshots])),
         )
 
-    return Task(dataset=dataset, solver=solver, scorer=scorers, name=name, epochs=Epochs(epochs, epochs_reducer))
+    return Task(dataset=dataset, solver=solver_steps, scorer=scorers, name=name, epochs=Epochs(epochs, epochs_reducer))
+
+
+def _parse_reasoning_tags(reasoning_tags: str | list[tuple[str, str]]) -> list[tuple[str, str]]:
+    if not isinstance(reasoning_tags, list):
+        try:
+            reasoning_tags = ast.literal_eval(reasoning_tags)
+        except (SyntaxError, ValueError) as e:
+            raise ValueError(
+                "reasoning_tags must be a list of pair tuples, e.g. [('start_tag', 'end_tag'), ...]. "
+                f"Got {reasoning_tags} instead, which caused parsing error {e}."
+            ) from e
+
+    if len(reasoning_tags) == 2 and all(isinstance(tag, str) for tag in reasoning_tags):
+        reasoning_tags = [tuple(reasoning_tags)]
+
+    if not all(isinstance(tag, tuple) and len(tag) == 2 for tag in reasoning_tags):
+        raise ValueError(
+            "reasoning_tags must be a list of pair tuples, e.g. [('start_tag', 'end_tag'), ...]. "
+            f"Got {reasoning_tags} instead."
+        )
+
+    return reasoning_tags
+
+
+@solver
+def reasoning_tag_postprocessor(
+    tag_pairs: list[tuple[str, str]],
+):
+    async def solve(state, generate_fn):
+        if getattr(state, "output", None) is not None and getattr(state.output, "completion", None):
+            state.output.completion = strip_reasoning_tags(
+                state.output.completion,
+                tag_pairs=tag_pairs,
+            )
+        return state
+
+    return solve
 
 
 def push_to_hub(bundle_dir: str, repo_id: str, public: bool = False):
@@ -368,6 +415,8 @@ def eval(  # noqa C901
             rich_help_panel=HELP_PANEL_NAME_2,
         ),
     ] = None,
+    remove_reasoning_tags: remove_reasoning_tags_arg.type = remove_reasoning_tags_arg.default,
+    reasoning_tags: reasoning_tags_arg.type = reasoning_tags_arg.default,
     # Metric parameters
     epochs: Annotated[
         int,
@@ -440,10 +489,19 @@ def eval(  # noqa C901
     registry = Registry(tasks=tasks, custom_tasks=custom_tasks, load_multilingual=load_tasks_multilingual)
     task_configs = registry.task_to_configs
     inspect_ai_tasks = []
+    parsed_reasoning_tags = _parse_reasoning_tags(reasoning_tags)
 
     for task_name, task_configs in task_configs.items():
         for task_config in task_configs:
-            inspect_ai_tasks.append(get_inspect_ai_task(task_config, epochs=epochs, epochs_reducer=epochs_reducer))
+            inspect_ai_tasks.append(
+                get_inspect_ai_task(
+                    task_config,
+                    epochs=epochs,
+                    epochs_reducer=epochs_reducer,
+                    remove_reasoning_tags=remove_reasoning_tags,
+                    reasoning_tags=parsed_reasoning_tags,
+                )
+            )
 
     if model_args is not None:
         model_args = InspectAIModelConfig._parse_args(model_args)
