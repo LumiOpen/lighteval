@@ -56,7 +56,6 @@ def get_inspect_ai_task(
     epochs_reducer: Literal["mean", "median", "mode", "max", "at_least_{n}", "pass_at_{k}"] | None = None,
     remove_reasoning_tags: bool = True,
     reasoning_tags: list[tuple[str, str]] | None = None,
-    strip_unclosed_reasoning_prefix: bool = False,
 ) -> Task:
     name = lighteval_task_config.name
     sample_fields = lighteval_task_config.sample_fields
@@ -78,7 +77,6 @@ def get_inspect_ai_task(
         solver_steps.append(
             reasoning_tag_postprocessor(
                 tag_pairs=reasoning_tags or [("<think>", "</think>")],
-                strip_unclosed_prefix=strip_unclosed_reasoning_prefix,
             )
         )
     scorers = lighteval_task_config.scorer or exact()
@@ -129,14 +127,12 @@ def _parse_reasoning_tags(reasoning_tags: str | list[tuple[str, str]]) -> list[t
 @solver
 def reasoning_tag_postprocessor(
     tag_pairs: list[tuple[str, str]],
-    strip_unclosed_prefix: bool = False,
 ):
     async def solve(state, generate_fn):
         if getattr(state, "output", None) is not None and getattr(state.output, "completion", None):
             state.output.completion = strip_reasoning_tags(
                 state.output.completion,
                 tag_pairs=tag_pairs,
-                strip_unclosed_prefix=strip_unclosed_prefix,
             )
         return state
 
@@ -421,13 +417,6 @@ def eval(  # noqa C901
     ] = None,
     remove_reasoning_tags: remove_reasoning_tags_arg.type = remove_reasoning_tags_arg.default,
     reasoning_tags: reasoning_tags_arg.type = reasoning_tags_arg.default,
-    strip_unclosed_reasoning_prefix: Annotated[
-        bool,
-        Option(
-            help="Also strip a leading reasoning prefix that has no opening tag in the generated text but ends with a configured reasoning end tag.",
-            rich_help_panel=HELP_PANEL_NAME_2,
-        ),
-    ] = False,
     # Metric parameters
     epochs: Annotated[
         int,
@@ -511,7 +500,6 @@ def eval(  # noqa C901
                     epochs_reducer=epochs_reducer,
                     remove_reasoning_tags=remove_reasoning_tags,
                     reasoning_tags=parsed_reasoning_tags,
-                    strip_unclosed_reasoning_prefix=strip_unclosed_reasoning_prefix,
                 )
             )
 
