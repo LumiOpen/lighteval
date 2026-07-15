@@ -276,10 +276,15 @@ def safe_divide(numerator: np.ndarray, denominator: float, default_value: float 
     return np.where(denominator != 0, numerator / denominator, default_value)
 
 
-def remove_reasoning_tags(text: str, tag_pairs: list[tuple[str, str]]) -> str:
+def remove_reasoning_tags(
+    text: str,
+    tag_pairs: list[tuple[str, str]],
+) -> str:
     """Removes all instances of reasoning tag pairs from text.
 
     Iteratively removes content between specified start and end tag pairs.
+    If a response starts inside a reasoning section and only includes the
+    closing tag, removes the prefix up to and including that closing tag.
     This is useful for cleaning model outputs that contain reasoning sections
     that should be excluded from evaluation.
 
@@ -288,7 +293,6 @@ def remove_reasoning_tags(text: str, tag_pairs: list[tuple[str, str]]) -> str:
     Args:
         text (str): The input text containing reasoning tags to remove.
         tag_pairs (list[tuple[str, str]]): List of (start_tag, end_tag) pairs to remove.
-
     Returns:
         str: The text with all reasoning tag content removed.
 
@@ -306,12 +310,22 @@ def remove_reasoning_tags(text: str, tag_pairs: list[tuple[str, str]]) -> str:
     result = text
 
     for start_tag, end_tag in tag_pairs:
-        while start_tag in result and end_tag in result:
-            start = result.find(start_tag)
-            end = result.find(end_tag, start)
-            if start != -1 and end != -1:
-                result = result[:start] + result[end + len(end_tag) :]
+        if not end_tag:
+            continue
+
+        while end_tag in result:
+            end = result.find(end_tag)
+            if start_tag:
+                start = result.find(start_tag)
+                if start == -1 or end < start:
+                    result = result[end + len(end_tag) :]
+                    continue
+                end = result.find(end_tag, start)
+                if end == -1:
+                    break
             else:
-                break
+                start = 0
+
+            result = result[:start] + result[end + len(end_tag) :]
 
     return result

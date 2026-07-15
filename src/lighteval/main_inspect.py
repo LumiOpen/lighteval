@@ -20,29 +20,46 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import ast
 import logging
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Literal
+from functools import wraps
+from typing import Any, Literal
 
 import requests
 from huggingface_hub import HfApi
 from inspect_ai import Epochs, Task, task
 from inspect_ai import eval_set as inspect_ai_eval_set
+from inspect_ai._util.registry import (
+    has_registry_params,
+    is_registry_object,
+    registry_info,
+    registry_params,
+    set_registry_info,
+    set_registry_params,
+)
 from inspect_ai.dataset import hf_dataset
 from inspect_ai.log import bundle_log_dir
 from inspect_ai.scorer import exact
-from inspect_ai.solver import generate, system_message
+from inspect_ai.solver import generate, solver, system_message
 from pytablewriter import MarkdownTableWriter
 from typer import Argument, Option
 from typing_extensions import Annotated
 
 from lighteval.cli_args import load_tasks_multilingual as load_tasks_multilingual_arg
+from lighteval.cli_args import reasoning_tags as reasoning_tags_arg
+from lighteval.cli_args import remove_reasoning_tags as remove_reasoning_tags_arg
 from lighteval.models.abstract_model import InspectAIModelConfig
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
+from lighteval.utils.utils import remove_reasoning_tags as strip_reasoning_tags
 
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_REASONING_TAGS = [("<think>", "</think>")]
 
 
 @task
@@ -50,6 +67,8 @@ def get_inspect_ai_task(
     lighteval_task_config: LightevalTaskConfig,
     epochs: int = 1,
     epochs_reducer: Literal["mean", "median", "mode", "max", "at_least_{n}", "pass_at_{k}"] | None = None,
+    remove_reasoning_tags: bool = True,
+    reasoning_tags: list[tuple[str, str]] | None = None,
 ) -> Task:
     name = lighteval_task_config.name
     sample_fields = lighteval_task_config.sample_fields
@@ -66,10 +85,17 @@ def get_inspect_ai_task(
     dataset = hf_dataset(dataset_repo, name=dataset_subset, split=dataset_split, sample_fields=sample_fields)
     if lighteval_task_config.filter is not None:
         dataset = dataset.filter(lighteval_task_config.filter)
-    solver = lighteval_task_config.solver or [
-        generate(cache=True),
-    ]
+    tag_pairs = reasoning_tags or DEFAULT_REASONING_TAGS
+    solver_steps = list(lighteval_task_config.solver) if lighteval_task_config.solver else [generate(cache=True)]
+    if remove_reasoning_tags:
+        solver_steps.append(
+            reasoning_tag_postprocessor(
+                tag_pairs=tag_pairs,
+            )
+        )
     scorers = lighteval_task_config.scorer or exact()
+    if remove_reasoning_tags:
+        scorers = _wrap_reasoning_tag_scorers(scorers, tag_pairs=tag_pairs)
     # TODO: have per task epoch and epoch reducer
 
     if lighteval_task_config.num_fewshots > 0:
@@ -84,12 +110,130 @@ def get_inspect_ai_task(
             seed=42,
             limit=lighteval_task_config.num_fewshots,
         )
-        solver.insert(
+        solver_steps.insert(
             0,
             system_message("\n\n".join([lighteval_task_config.sample_to_fewshot(sample) for sample in fewshots])),
         )
 
-    return Task(dataset=dataset, solver=solver, scorer=scorers, name=name, epochs=Epochs(epochs, epochs_reducer))
+    return Task(dataset=dataset, solver=solver_steps, scorer=scorers, name=name, epochs=Epochs(epochs, epochs_reducer))
+
+
+def _parse_reasoning_tags(reasoning_tags: str | list[tuple[str, str]]) -> list[tuple[str, str]]:
+    if not isinstance(reasoning_tags, list):
+        try:
+            reasoning_tags = ast.literal_eval(reasoning_tags)
+        except (SyntaxError, ValueError) as e:
+            raise ValueError(
+                "reasoning_tags must be a list of pair tuples, e.g. [('start_tag', 'end_tag'), ...]. "
+                f"Got {reasoning_tags} instead, which caused parsing error {e}."
+            ) from e
+
+    if len(reasoning_tags) == 2 and all(isinstance(tag, str) for tag in reasoning_tags):
+        reasoning_tags = [tuple(reasoning_tags)]
+
+    if not all(isinstance(tag, tuple) and len(tag) == 2 for tag in reasoning_tags):
+        raise ValueError(
+            "reasoning_tags must be a list of pair tuples, e.g. [('start_tag', 'end_tag'), ...]. "
+            f"Got {reasoning_tags} instead."
+        )
+
+    return reasoning_tags
+
+
+@solver
+def reasoning_tag_postprocessor(
+    tag_pairs: list[tuple[str, str]],
+):
+    async def solve(state, generate_fn):
+        return _strip_state_reasoning(state, tag_pairs=tag_pairs)
+
+    return solve
+
+
+def _strip_state_reasoning(state: Any, tag_pairs: list[tuple[str, str]]):
+    for message in getattr(state, "messages", []) or []:
+        _strip_message_reasoning(message, tag_pairs=tag_pairs)
+
+    output = getattr(state, "output", None)
+    if output is not None:
+        _strip_model_output_reasoning(output, tag_pairs=tag_pairs)
+
+    return state
+
+
+def _strip_model_output_reasoning(output: Any, tag_pairs: list[tuple[str, str]]) -> None:
+    completion = getattr(output, "completion", None)
+    if isinstance(completion, str):
+        output.completion = strip_reasoning_tags(completion, tag_pairs=tag_pairs)
+
+    for choice in getattr(output, "choices", []) or []:
+        _strip_message_reasoning(getattr(choice, "message", None), tag_pairs=tag_pairs)
+
+
+def _strip_message_reasoning(message: Any, tag_pairs: list[tuple[str, str]]) -> None:
+    if getattr(message, "role", None) != "assistant":
+        return
+
+    text = getattr(message, "text", None)
+    if isinstance(text, str):
+        message.text = strip_reasoning_tags(text, tag_pairs=tag_pairs)
+        return
+
+    content = getattr(message, "content", None)
+    if isinstance(content, str):
+        message.content = strip_reasoning_tags(content, tag_pairs=tag_pairs)
+
+
+def _wrap_reasoning_tag_scorers(scorers: Any, tag_pairs: list[tuple[str, str]]):
+    if isinstance(scorers, Sequence) and not isinstance(scorers, str | bytes):
+        return [_wrap_reasoning_tag_scorer(scorer, tag_pairs=tag_pairs) for scorer in scorers]
+
+    return _wrap_reasoning_tag_scorer(scorers, tag_pairs=tag_pairs)
+
+
+def _wrap_reasoning_tag_scorer(scorer: Any, tag_pairs: list[tuple[str, str]]):
+    if not callable(scorer) or is_registry_object(scorer, type="scanner"):
+        return scorer
+
+    @wraps(scorer)
+    async def score(state, target):
+        result = await scorer(state, target)
+        return _strip_score_reasoning(result, tag_pairs=tag_pairs)
+
+    if is_registry_object(scorer, type="scorer"):
+        set_registry_info(score, registry_info(scorer))
+        if has_registry_params(scorer):
+            set_registry_params(score, dict(registry_params(scorer)))
+
+    return score
+
+
+def _strip_score_reasoning(score: Any, tag_pairs: list[tuple[str, str]]):
+    if score is None:
+        return None
+
+    for field in ("answer", "explanation"):
+        value = getattr(score, field, None)
+        if isinstance(value, str):
+            setattr(score, field, strip_reasoning_tags(value, tag_pairs=tag_pairs))
+
+    for field in ("value", "metadata"):
+        if hasattr(score, field):
+            setattr(score, field, _strip_reasoning_value(getattr(score, field), tag_pairs=tag_pairs))
+
+    return score
+
+
+def _strip_reasoning_value(value: Any, tag_pairs: list[tuple[str, str]]):
+    if isinstance(value, str):
+        return strip_reasoning_tags(value, tag_pairs=tag_pairs)
+    if isinstance(value, list):
+        return [_strip_reasoning_value(item, tag_pairs=tag_pairs) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_strip_reasoning_value(item, tag_pairs=tag_pairs) for item in value)
+    if isinstance(value, Mapping):
+        return {key: _strip_reasoning_value(item, tag_pairs=tag_pairs) for key, item in value.items()}
+    return value
 
 
 def push_to_hub(bundle_dir: str, repo_id: str, public: bool = False):
@@ -368,6 +512,8 @@ def eval(  # noqa C901
             rich_help_panel=HELP_PANEL_NAME_2,
         ),
     ] = None,
+    remove_reasoning_tags: remove_reasoning_tags_arg.type = remove_reasoning_tags_arg.default,
+    reasoning_tags: reasoning_tags_arg.type = reasoning_tags_arg.default,
     # Metric parameters
     epochs: Annotated[
         int,
@@ -440,10 +586,19 @@ def eval(  # noqa C901
     registry = Registry(tasks=tasks, custom_tasks=custom_tasks, load_multilingual=load_tasks_multilingual)
     task_configs = registry.task_to_configs
     inspect_ai_tasks = []
+    parsed_reasoning_tags = _parse_reasoning_tags(reasoning_tags)
 
     for task_name, task_configs in task_configs.items():
         for task_config in task_configs:
-            inspect_ai_tasks.append(get_inspect_ai_task(task_config, epochs=epochs, epochs_reducer=epochs_reducer))
+            inspect_ai_tasks.append(
+                get_inspect_ai_task(
+                    task_config,
+                    epochs=epochs,
+                    epochs_reducer=epochs_reducer,
+                    remove_reasoning_tags=remove_reasoning_tags,
+                    reasoning_tags=parsed_reasoning_tags,
+                )
+            )
 
     if model_args is not None:
         model_args = InspectAIModelConfig._parse_args(model_args)
