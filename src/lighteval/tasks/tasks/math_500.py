@@ -25,12 +25,6 @@ true
 import os
 import warnings
 
-warnings.warn(
-    "math_500 is deprecated, use mmath500:en instead (supports configurable scorer model)",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import model_graded_fact
@@ -39,6 +33,13 @@ from inspect_ai.solver import generate, prompt_template
 from lighteval.metrics.metrics import Metrics
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
 from lighteval.tasks.requests import Doc
+
+
+warnings.warn(
+    "math_500 is deprecated, use mmath500:en instead (supports configurable scorer model)",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def _get_scorer_model():
