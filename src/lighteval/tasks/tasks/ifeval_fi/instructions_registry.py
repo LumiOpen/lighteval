@@ -16,6 +16,7 @@
 
 from lighteval.tasks.tasks.ifeval_fi import instructions
 
+
 _KEYWORD = "keywords:"
 
 _LANGUAGE = "language:"
@@ -101,7 +102,9 @@ INSTRUCTION_CONFLICTS = {
         _LANGUAGE + "response_language",
         _FORMAT + "number_highlighted_sections",
     },
-    _FORMAT + "json_format": set(INSTRUCTION_DICT.keys()).difference({_KEYWORD + "forbidden_words", _KEYWORD + "existence"}),
+    _FORMAT + "json_format": set(INSTRUCTION_DICT.keys()).difference(
+        {_KEYWORD + "forbidden_words", _KEYWORD + "existence"}
+    ),
     _FORMAT + "title": {_FORMAT + "title"},
     _COMBINATION + "two_responses": set(INSTRUCTION_DICT.keys()).difference(
         {
