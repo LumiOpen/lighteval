@@ -80,6 +80,7 @@ dependencies = [
     "aenum==3.1.15",
     # Base metrics
     "nltk==3.9.1",
+    "immutabledict",
     "scikit-learn",
     "sacrebleu",
     "rouge_score==0.1.2",
