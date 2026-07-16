@@ -33,6 +33,7 @@ from lighteval.tasks.tasks.mt_bench.judge_prompt_templates import (
     flow_judge_prompt_mt_bench_with_ref,
     flow_judge_prompt_mt_bench_without_ref,
 )
+from lighteval.tasks.tasks.mt_bench.main_inspect import TASKS_TABLE as _INSPECT_TASKS
 
 
 def mt_bench_prompt(line, task_name: str = ""):
@@ -94,4 +95,4 @@ task = LightevalTaskConfig(
 )
 
 
-TASKS_TABLE = [task]
+TASKS_TABLE = [task] + _INSPECT_TASKS
