@@ -12,11 +12,11 @@ import requests
 
 def lighteval_cache_dir() -> Path:
     """Return the writable cache root used for downloaded LightEval assets."""
-    if configured := os.environ.get("LIGHTEVAL_CACHE_DIR"):
-        return Path(configured).expanduser()
     if xdg_cache := os.environ.get("XDG_CACHE_HOME"):
-        return Path(xdg_cache).expanduser() / "lighteval"
-    return Path.home() / ".cache" / "lighteval"
+        cache_home = Path(xdg_cache).expanduser()
+    else:
+        cache_home = Path.home() / ".cache"
+    return cache_home / "huggingface" / "lighteval" / "assets"
 
 
 def ensure_cached_asset(*, relative_path: str, url: str, sha256: str, timeout: float = 60) -> Path:
