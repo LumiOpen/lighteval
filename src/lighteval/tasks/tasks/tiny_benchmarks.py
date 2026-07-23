@@ -21,12 +21,9 @@ paper:
 https://arxiv.org/abs/2402.14992
 """
 
-import os
-import pathlib
 import pickle
 
 import numpy as np
-import requests
 from scipy.optimize import minimize
 
 from lighteval.metrics.metrics import CorpusLevelMetricGrouping
@@ -42,6 +39,15 @@ from lighteval.tasks.tasks.hellaswag import hellaswag_prompt
 from lighteval.tasks.tasks.mmlu import mmlu_prompt
 from lighteval.tasks.tasks.truthfulqa import truthful_qa_multiple_choice_prompt
 from lighteval.tasks.tasks.winogrande import winogrande_prompt
+from lighteval.utils.asset_cache import ensure_cached_asset
+
+
+TINY_BENCHMARKS_COMMIT = "e9a8b1031b0340571beb6c9ca3a27891be09a8fd"
+TINY_BENCHMARKS_SHA256 = "c3b6e426dfe7b100fe6d0ee960398e10a8763254bcead3be80cc6bc15abca284"
+TINY_BENCHMARKS_URL = (
+    "https://raw.githubusercontent.com/felipemaiapolo/tinyBenchmarks/"
+    f"{TINY_BENCHMARKS_COMMIT}/tinyBenchmarks/tinyBenchmarks.pkl"
+)
 
 
 # Utility functions
@@ -85,21 +91,16 @@ class TinyCorpusAggregator(SampleLevelComputation, CorpusLevelComputation):
             raise ValueError(f"Bench name must be one of {','.join(self.LEADEBRBOARD_SCENARIOS + self.BENCHS)}.")
         self.task = task
         self.scenario = "lb" if task in self.LEADEBRBOARD_SCENARIOS else task
-        self.download()
         self.estimates = None
         self.num_samples = 0
 
-    def download(self):
-        # Likely to crash in // processes if we don't include the pkl
-        path_dld = os.path.join(pathlib.Path(__file__).parent.resolve(), "tinyBenchmarks.pkl")
-        # Downloading files
-        if not os.path.isfile(path_dld):
-            url = "https://raw.githubusercontent.com/felipemaiapolo/tinyBenchmarks/main/tinyBenchmarks/tinyBenchmarks.pkl"
-            response = requests.get(url)
-            if response.status_code == 200:
-                # Write the content to a file
-                with open(path_dld, "wb") as file:
-                    file.write(response.content)
+    @staticmethod
+    def download():
+        return ensure_cached_asset(
+            relative_path="tiny_benchmarks/tinyBenchmarks.pkl",
+            url=TINY_BENCHMARKS_URL,
+            sha256=TINY_BENCHMARKS_SHA256,
+        )
 
     def compute(self, doc: Doc, model_response: ModelResponse, **kwargs) -> float:
         if self.task == "gsm8k":
@@ -116,7 +117,7 @@ class TinyCorpusAggregator(SampleLevelComputation, CorpusLevelComputation):
             return self.estimates[self.task]
 
         # We load the weights for the relevant examples
-        with open("extended_tasks/tiny_benchmarks/tinyBenchmarks.pkl", "rb") as handle:
+        with self.download().open("rb") as handle:
             tinyBenchmarks = pickle.load(handle)
 
         seen_examples = tinyBenchmarks[self.scenario]["seen_examples"]
