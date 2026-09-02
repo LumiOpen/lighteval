@@ -204,3 +204,32 @@ def test_reasoning_scorer_wrapper_strips_returned_score_fields_and_preserves_reg
     assert score.metadata == {"raw": " metadata"}
     assert wrapped.__registry_info__ is scorer.__registry_info__
     assert wrapped.__registry_params__ == {"ignore_case": True}
+
+
+def test_inspect_task_passes_pinned_revision_to_evaluation_and_fewshot_datasets(main_inspect, monkeypatch):
+    calls = []
+
+    def hf_dataset(*args, **kwargs):
+        calls.append((args, kwargs))
+        return []
+
+    monkeypatch.setattr(main_inspect, "hf_dataset", hf_dataset)
+    config = types.SimpleNamespace(
+        name="revision_test",
+        sample_fields=lambda record: record,
+        hf_repo="org/dataset",
+        hf_subset="default",
+        hf_revision="pinned-revision",
+        evaluation_splits=["test"],
+        filter=None,
+        solver=None,
+        scorer=None,
+        num_fewshots=1,
+        sample_to_fewshot=lambda sample: str(sample),
+    )
+
+    main_inspect.get_inspect_ai_task(config)
+
+    assert len(calls) == 2
+    assert calls[0][1]["revision"] == "pinned-revision"
+    assert calls[1][1]["revision"] == "pinned-revision"

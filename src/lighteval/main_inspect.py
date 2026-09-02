@@ -82,7 +82,13 @@ def get_inspect_ai_task(
     dataset_subset = lighteval_task_config.hf_subset
     dataset_split = lighteval_task_config.evaluation_splits[0]
 
-    dataset = hf_dataset(dataset_repo, name=dataset_subset, split=dataset_split, sample_fields=sample_fields)
+    dataset = hf_dataset(
+        dataset_repo,
+        name=dataset_subset,
+        split=dataset_split,
+        revision=lighteval_task_config.hf_revision,
+        sample_fields=sample_fields,
+    )
     if lighteval_task_config.filter is not None:
         dataset = dataset.filter(lighteval_task_config.filter)
     tag_pairs = reasoning_tags or DEFAULT_REASONING_TAGS
@@ -105,6 +111,7 @@ def get_inspect_ai_task(
             path=dataset_repo,
             name=dataset_subset,
             split=dataset_split,
+            revision=lighteval_task_config.hf_revision,
             sample_fields=sample_fields,
             shuffle=True,
             seed=42,
