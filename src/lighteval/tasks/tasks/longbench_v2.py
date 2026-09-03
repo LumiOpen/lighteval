@@ -341,29 +341,36 @@ def _metadata_accuracy(scores: list[SampleScore], field: str, expected: str) -> 
     return _mean([_score_is_correct(score) for score in selected])
 
 
+def _metadata_accuracy_metric(field: str, expected: str) -> Metric:
+    def metric_fn(scores: list[SampleScore]) -> float:
+        return _metadata_accuracy(scores, field, expected)
+
+    return metric_fn
+
+
 @metric
 def difficulty_easy_accuracy() -> Metric:
-    return lambda scores: _metadata_accuracy(scores, "difficulty", "easy")
+    return _metadata_accuracy_metric("difficulty", "easy")
 
 
 @metric
 def difficulty_hard_accuracy() -> Metric:
-    return lambda scores: _metadata_accuracy(scores, "difficulty", "hard")
+    return _metadata_accuracy_metric("difficulty", "hard")
 
 
 @metric
 def length_short_accuracy() -> Metric:
-    return lambda scores: _metadata_accuracy(scores, "length", "short")
+    return _metadata_accuracy_metric("length", "short")
 
 
 @metric
 def length_medium_accuracy() -> Metric:
-    return lambda scores: _metadata_accuracy(scores, "length", "medium")
+    return _metadata_accuracy_metric("length", "medium")
 
 
 @metric
 def length_long_accuracy() -> Metric:
-    return lambda scores: _metadata_accuracy(scores, "length", "long")
+    return _metadata_accuracy_metric("length", "long")
 
 
 LONG_BENCH_V2_INSPECT_METRICS = [

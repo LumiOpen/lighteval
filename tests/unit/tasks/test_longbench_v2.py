@@ -3,6 +3,7 @@ import hashlib
 from types import SimpleNamespace
 
 import pytest
+from inspect_ai._eval.task.results import call_metric
 from inspect_ai.scorer import SampleScore, Score, Target
 
 from lighteval.tasks.tasks import longbench_v2
@@ -155,3 +156,27 @@ def test_scorer_and_metadata_metrics():
     assert longbench_v2.difficulty_hard_accuracy()(scores) == pytest.approx(1 / 2)
     assert longbench_v2.difficulty_easy_accuracy()(scores) == 0
     assert longbench_v2.length_long_accuracy()(scores) == 1
+
+
+def test_metadata_metrics_use_sample_score_dispatch():
+    scores = [
+        SampleScore(
+            score=Score(value=1, metadata={"parsed": True, "prediction": "C"}),
+            sample_metadata={"difficulty": "hard", "length": "long"},
+        ),
+        SampleScore(
+            score=Score(value=0, metadata={"parsed": True, "prediction": "B"}),
+            sample_metadata={"difficulty": "easy", "length": "short"},
+        ),
+    ]
+
+    metrics_and_expected = [
+        (longbench_v2.difficulty_easy_accuracy(), 0),
+        (longbench_v2.difficulty_hard_accuracy(), 1),
+        (longbench_v2.length_short_accuracy(), 0),
+        (longbench_v2.length_medium_accuracy(), 0),
+        (longbench_v2.length_long_accuracy(), 1),
+    ]
+
+    for metric_fn, expected in metrics_and_expected:
+        assert call_metric(metric_fn, scores) == expected
