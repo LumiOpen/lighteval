@@ -5,11 +5,11 @@ BFCL's real ``ast_checker`` from the ``bfcl-eval`` package and vendors BFCL's
 Python AST decoder (stdlib ``ast`` only — BFCL's ``model_handler.utils`` cannot be
 imported without pulling in tenacity + tree_sitter).
 
-Requires BFCL's ``ast_checker`` from the ``bfcl_eval`` package. Note that
-``bfcl-eval`` pins ``numpy==1.26.4``, which conflicts with lighteval's ``numpy>=2``,
-so it usually cannot be pip-installed into the same environment. The recommended
-path is to point ``BFCL_EVAL_ROOT`` at a gorilla
-``berkeley-function-call-leaderboard`` checkout, which is prepended to ``sys.path``.
+Requires BFCL's ``ast_checker`` from the ``bfcl_eval`` package. ``bfcl-eval`` pins
+``numpy==1.26.4``, which conflicts with lighteval's ``numpy>=2`` so a normal install
+is unsatisfiable — but the modules used here import no numpy, so install it without
+deps: ``pip install --no-deps bfcl-eval``. Alternatively point ``BFCL_EVAL_ROOT`` at
+a gorilla ``berkeley-function-call-leaderboard`` checkout (prepended to ``sys.path``).
 """
 
 import ast
@@ -65,11 +65,10 @@ def _load_bfcl():
     except ImportError as exc:
         raise ImportError(
             "The BFCL tasks require BFCL's ast_checker from the 'bfcl_eval' package. "
-            "bfcl-eval pins numpy==1.26.4, which conflicts with lighteval's numpy>=2, so "
-            "it usually cannot be pip-installed into the same environment. Point "
-            "BFCL_EVAL_ROOT at a gorilla 'berkeley-function-call-leaderboard' checkout "
-            "(prepended to sys.path), or install bfcl-eval in an environment whose numpy "
-            "it can satisfy."
+            "bfcl-eval pins numpy==1.26.4 which conflicts with lighteval's numpy>=2, but "
+            "the modules used here are numpy-free, so install it without deps: "
+            "`pip install --no-deps bfcl-eval`. Alternatively set BFCL_EVAL_ROOT to a "
+            "gorilla 'berkeley-function-call-leaderboard' checkout (prepended to sys.path)."
         ) from exc
 
     _BFCL = {

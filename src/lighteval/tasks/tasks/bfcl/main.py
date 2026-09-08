@@ -16,9 +16,10 @@ Exposes one task per non-live category plus a merged `bfcl_nonlive` average:
   bfcl_simple_python, bfcl_multiple, bfcl_parallel, bfcl_parallel_multiple,
   bfcl_simple_java, bfcl_simple_javascript, bfcl_irrelevance, bfcl_nonlive
 
-Requires BFCL's `ast_checker`: set `BFCL_EVAL_ROOT` to a gorilla
-`berkeley-function-call-leaderboard` checkout (bfcl-eval pins numpy==1.26.4 and
-generally cannot be pip-installed alongside lighteval's numpy>=2).
+Requires BFCL's `ast_checker` from bfcl-eval. It pins numpy==1.26.4 (conflicts with
+lighteval's numpy>=2) but the modules used here are numpy-free, so install it without
+deps: `pip install --no-deps bfcl-eval` (or set `BFCL_EVAL_ROOT` to a gorilla
+`berkeley-function-call-leaderboard` checkout).
 Java/JavaScript categories are evaluated in python-list mode (BFCL's language-
 specific type coercion is still applied by `ast_checker`); the model is not
 prompted in Java/JS syntax.
