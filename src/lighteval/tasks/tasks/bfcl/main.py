@@ -36,7 +36,7 @@ import os
 
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageSystem, ChatMessageUser
-from inspect_ai.scorer import Score, mean, scorer, stderr
+from inspect_ai.scorer import Score, accuracy, scorer, stderr
 from inspect_ai.solver import generate
 
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
@@ -82,7 +82,7 @@ def record_to_sample(record):
     )
 
 
-@scorer(metrics=[mean(), stderr()])
+@scorer(metrics=[accuracy(), stderr()])
 def bfcl_ast_scorer():
     async def score(state, target):
         md = state.metadata
