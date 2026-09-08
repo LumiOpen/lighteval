@@ -19,52 +19,73 @@ import sys
 import types
 
 
-# Optional: point at a gorilla source checkout instead of the installed package.
-_BFCL_EVAL_ROOT = os.environ.get("BFCL_EVAL_ROOT")
-if _BFCL_EVAL_ROOT and _BFCL_EVAL_ROOT not in sys.path:
-    sys.path.insert(0, _BFCL_EVAL_ROOT)
+# bfcl_eval is imported lazily (see _load_bfcl). Importing it at module-import time
+# would break registry loading of ALL tasks when bfcl-eval is not installed, so the
+# dependency is only resolved when a BFCL task actually runs.
+_BFCL = None
 
-# ``bfcl_eval.constants.model_config`` eagerly imports every API handler (which we
-# don't need and which pull heavy optional deps). ``ast_checker`` only touches it via
-# ``convert_func_name`` for the ``underscore_to_dot`` flag, so we stub it: any model
-# resolves to ``underscore_to_dot=False`` and function names pass through unchanged.
-if "bfcl_eval.constants.model_config" not in sys.modules:
 
-    class _AnyModelCfg(dict):
-        def __getitem__(self, key):
-            return types.SimpleNamespace(underscore_to_dot=False)
+def _load_bfcl():
+    """Lazily import BFCL's ast_checker/enums/prompt templates (memoized)."""
+    global _BFCL
+    if _BFCL is not None:
+        return _BFCL
 
-        def __contains__(self, key):
-            return True
+    # Optional: point at a gorilla source checkout instead of the installed package.
+    bfcl_root = os.environ.get("BFCL_EVAL_ROOT")
+    if bfcl_root and bfcl_root not in sys.path:
+        sys.path.insert(0, bfcl_root)
 
-    _stub = types.ModuleType("bfcl_eval.constants.model_config")
-    _stub.MODEL_CONFIG_MAPPING = _AnyModelCfg()
-    sys.modules["bfcl_eval.constants.model_config"] = _stub
+    # ``bfcl_eval.constants.model_config`` eagerly imports every API handler (which we
+    # don't need). ``ast_checker`` only touches it via ``convert_func_name`` for the
+    # ``underscore_to_dot`` flag, so we stub it: any model resolves to
+    # ``underscore_to_dot=False`` and function names pass through unchanged.
+    if "bfcl_eval.constants.model_config" not in sys.modules:
 
-try:
-    from bfcl_eval.constants.default_prompts import (
-        OUTPUT_FORMAT_MAPPING,
-        PARAM_TYPE_MAPPING,
-        PROMPT_STYLE_TEMPLATES,
-        PROMPT_TEMPLATE_MAPPING,
-    )
-    from bfcl_eval.constants.enums import Language
-    from bfcl_eval.eval_checker.ast_eval.ast_checker import ast_checker
-except ImportError as exc:  # pragma: no cover - import-time guard
-    raise ImportError(
-        "The BFCL tasks require BFCL's ast_checker from the 'bfcl_eval' package. "
-        "bfcl-eval pins numpy==1.26.4, which conflicts with lighteval's numpy>=2, so "
-        "it usually cannot be pip-installed into the same environment. Point "
-        "BFCL_EVAL_ROOT at a gorilla 'berkeley-function-call-leaderboard' checkout "
-        "(prepended to sys.path), or install bfcl-eval in an environment whose numpy "
-        "it can satisfy."
-    ) from exc
+        class _AnyModelCfg(dict):
+            def __getitem__(self, key):
+                return types.SimpleNamespace(underscore_to_dot=False)
 
-# Per-category language passed to ast_checker for correct type coercion.
-CATEGORY_LANGUAGE = {
-    "simple_java": Language.JAVA,
-    "simple_javascript": Language.JAVASCRIPT,
-}
+            def __contains__(self, key):
+                return True
+
+        stub = types.ModuleType("bfcl_eval.constants.model_config")
+        stub.MODEL_CONFIG_MAPPING = _AnyModelCfg()
+        sys.modules["bfcl_eval.constants.model_config"] = stub
+
+    try:
+        from bfcl_eval.constants.default_prompts import (
+            OUTPUT_FORMAT_MAPPING,
+            PARAM_TYPE_MAPPING,
+            PROMPT_STYLE_TEMPLATES,
+            PROMPT_TEMPLATE_MAPPING,
+        )
+        from bfcl_eval.constants.enums import Language
+        from bfcl_eval.eval_checker.ast_eval.ast_checker import ast_checker
+    except ImportError as exc:
+        raise ImportError(
+            "The BFCL tasks require BFCL's ast_checker from the 'bfcl_eval' package. "
+            "bfcl-eval pins numpy==1.26.4, which conflicts with lighteval's numpy>=2, so "
+            "it usually cannot be pip-installed into the same environment. Point "
+            "BFCL_EVAL_ROOT at a gorilla 'berkeley-function-call-leaderboard' checkout "
+            "(prepended to sys.path), or install bfcl-eval in an environment whose numpy "
+            "it can satisfy."
+        ) from exc
+
+    _BFCL = {
+        "ast_checker": ast_checker,
+        "Language": Language,
+        # Per-category language passed to ast_checker for correct type coercion.
+        "category_language": {
+            "simple_java": Language.JAVA,
+            "simple_javascript": Language.JAVASCRIPT,
+        },
+        "OUTPUT_FORMAT_MAPPING": OUTPUT_FORMAT_MAPPING,
+        "PARAM_TYPE_MAPPING": PARAM_TYPE_MAPPING,
+        "PROMPT_STYLE_TEMPLATES": PROMPT_STYLE_TEMPLATES,
+        "PROMPT_TEMPLATE_MAPPING": PROMPT_TEMPLATE_MAPPING,
+    }
+    return _BFCL
 
 
 # --------------------------------------------------------------------------
@@ -161,11 +182,12 @@ def decode_robust(text):
 # "ret_fmt=python&tool_call_tag=False&func_doc_fmt=json&prompt_fmt=plaintext&style=classic").
 # --------------------------------------------------------------------------
 def build_system_prompt(functions):
-    style = PROMPT_STYLE_TEMPLATES["classic"]
-    template = PROMPT_TEMPLATE_MAPPING["plaintext"]
+    bfcl = _load_bfcl()
+    style = bfcl["PROMPT_STYLE_TEMPLATES"]["classic"]
+    template = bfcl["PROMPT_TEMPLATE_MAPPING"]["plaintext"]
     tool_call_format = style["tool_call_no_tag"].format(
-        output_format=OUTPUT_FORMAT_MAPPING["python"],
-        param_types=PARAM_TYPE_MAPPING["python"],
+        output_format=bfcl["OUTPUT_FORMAT_MAPPING"]["python"],
+        param_types=bfcl["PARAM_TYPE_MAPPING"]["python"],
     )
     available_tools = style["available_tools"].format(format="json", functions=json.dumps(functions, indent=4))
     return template.format(
@@ -196,9 +218,10 @@ def grade(text, category, function, ground_truth):
     if not ground_truth:
         return (0.0, "missing_ground_truth")
 
-    language = CATEGORY_LANGUAGE.get(category, Language.PYTHON)
+    bfcl = _load_bfcl()
+    language = bfcl["category_language"].get(category, bfcl["Language"].PYTHON)
     try:
-        result = ast_checker(function, decoded, ground_truth, language, category, "bfcl")
+        result = bfcl["ast_checker"](function, decoded, ground_truth, language, category, "bfcl")
     except Exception as exc:
         return (0.0, f"checker_error:{exc}")
     ok = bool(result.get("valid"))
