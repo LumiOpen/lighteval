@@ -3,7 +3,7 @@ name:
 BFCL non-live (function calling)
 
 dataset:
-ezosa/bfcl-nonlive
+ezosa/bfcl
 
 abstract:
 Berkeley Function Calling Leaderboard (BFCL) non-live categories evaluated as
@@ -97,11 +97,11 @@ def bfcl_ast_scorer():
     return score
 
 
-# Data hosted on the HF Hub as multi-config datasets (one config per category +
-# a merged collection config, split="train"). Override the repos with
-# BFCL_HF_REPO / BFCL_LIVE_HF_REPO to point at mirrors (e.g. under an org).
-_HF_REPO = os.environ.get("BFCL_HF_REPO", "ezosa/bfcl-nonlive")
-_LIVE_HF_REPO = os.environ.get("BFCL_LIVE_HF_REPO", "ezosa/bfcl-live")
+# Data hosted on the HF Hub as one multi-config dataset (split="train"): the
+# non-live config group (`simple_python`, ..., `irrelevance`, merged `nonlive`)
+# and the live config group (`live_simple`, ..., `live_irrelevance`, merged
+# `live`). Override with BFCL_HF_REPO to point at a mirror (e.g. under an org).
+_HF_REPO = os.environ.get("BFCL_HF_REPO", "ezosa/bfcl")
 
 _CATEGORIES = [
     "simple_python",
@@ -146,6 +146,6 @@ def _make_config(name, subset, repo):
 TASKS_TABLE = (
     [_make_config(f"bfcl_{cat}", cat, _HF_REPO) for cat in _CATEGORIES]
     + [_make_config("bfcl_nonlive", "nonlive", _HF_REPO)]
-    + [_make_config(f"bfcl_{cat}", cat, _LIVE_HF_REPO) for cat in _LIVE_CATEGORIES]
-    + [_make_config("bfcl_live", "live", _LIVE_HF_REPO)]
+    + [_make_config(f"bfcl_{cat}", cat, _HF_REPO) for cat in _LIVE_CATEGORIES]
+    + [_make_config("bfcl_live", "live", _HF_REPO)]
 )

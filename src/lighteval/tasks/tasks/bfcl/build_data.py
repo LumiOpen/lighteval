@@ -18,7 +18,7 @@ With ``--push-to-hub`` it uploads the collection as a multi-config HF dataset
 Usage:
   python build_data.py --bfcl-root /path/to/berkeley-function-call-leaderboard \\
       --collection nonlive --out-dir ./bfcl_data
-  python build_data.py --bfcl-root ... --collection live --push-to-hub ezosa/bfcl-live
+  python build_data.py --bfcl-root ... --collection live --push-to-hub ezosa/bfcl
 """
 
 import argparse
@@ -82,7 +82,7 @@ def main():
     ap.add_argument("--bfcl-root", required=True, help="path to berkeley-function-call-leaderboard")
     ap.add_argument("--collection", choices=sorted(COLLECTIONS), default="nonlive")
     ap.add_argument("--out-dir", default="./bfcl_data")
-    ap.add_argument("--push-to-hub", metavar="REPO", default=None, help="e.g. ezosa/bfcl-live")
+    ap.add_argument("--push-to-hub", metavar="REPO", default=None, help="e.g. ezosa/bfcl")
     args = ap.parse_args()
 
     categories = COLLECTIONS[args.collection]
