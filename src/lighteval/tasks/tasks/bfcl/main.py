@@ -16,7 +16,9 @@ Exposes one task per non-live category plus a merged `bfcl_nonlive` average:
   bfcl_simple_python, bfcl_multiple, bfcl_parallel, bfcl_parallel_multiple,
   bfcl_simple_java, bfcl_simple_javascript, bfcl_irrelevance, bfcl_nonlive
 
-Requires the `bfcl-eval` package (pip install lighteval[extended_tasks]).
+Requires BFCL's `ast_checker`: set `BFCL_EVAL_ROOT` to a gorilla
+`berkeley-function-call-leaderboard` checkout (bfcl-eval pins numpy==1.26.4 and
+generally cannot be pip-installed alongside lighteval's numpy>=2).
 Java/JavaScript categories are evaluated in python-list mode (BFCL's language-
 specific type coercion is still applied by `ast_checker`); the model is not
 prompted in Java/JS syntax.
@@ -27,6 +29,7 @@ english
 tags:
 function-calling, tool-use, agentic, bfcl
 """
+
 import json
 import os
 
@@ -129,6 +132,4 @@ def _make_config(name, subset):
     )
 
 
-TASKS_TABLE = [
-    _make_config(f"bfcl_{cat}", cat) for cat in _CATEGORIES
-] + [_make_config("bfcl_nonlive", "nonlive")]
+TASKS_TABLE = [_make_config(f"bfcl_{cat}", cat) for cat in _CATEGORIES] + [_make_config("bfcl_nonlive", "nonlive")]

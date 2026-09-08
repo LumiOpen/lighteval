@@ -117,7 +117,6 @@ extended_tasks = [
   "tiktoken",
   "emoji", "spacy", "syllapy",  # ifbench
   "evaluate", # slr_bench
-  "bfcl-eval", # bfcl non-live function-calling AST checker
 ]
 s3 = ["s3fs"]
 multilingual = [

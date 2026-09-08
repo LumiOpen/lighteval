@@ -16,9 +16,11 @@ Usage:
       --out-dir ./bfcl_data
   python build_data.py --bfcl-root ... --push-to-hub ezosa/bfcl-nonlive
 """
+
 import argparse
 import json
 import os
+
 
 # Non-live categories (AST-scored). ``irrelevance`` has no ground truth.
 NON_LIVE_CATEGORIES = [

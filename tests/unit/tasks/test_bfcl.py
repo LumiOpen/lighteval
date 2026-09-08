@@ -2,6 +2,7 @@
 
 Skipped when the optional ``bfcl-eval`` dependency is not installed.
 """
+
 import pytest
 
 
@@ -34,13 +35,13 @@ CALL = "[calculate_triangle_area(base=10, height=5)]"
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        (CALL, 1.0),                                             # clean correct call
-        (f"[wrong_{CALL[1:]}", 0.0),                             # wrong function name
-        (f"<think>reasoning</think>\n{CALL}", 1.0),              # <think> stripped
-        (f"Reasoning trace:\n{CALL}", 1.0),                      # reasoning-prefix leak
+        (CALL, 1.0),  # clean correct call
+        (f"[wrong_{CALL[1:]}", 0.0),  # wrong function name
+        (f"<think>reasoning</think>\n{CALL}", 1.0),  # <think> stripped
+        (f"Reasoning trace:\n{CALL}", 1.0),  # reasoning-prefix leak
         (f"Reasoning trace:\nlots of prose\n\nResponse:\n\n{CALL}", 1.0),  # Response: section
         ('[{"name": "calculate_triangle_area", "params": {"base": 10}}]', 0.0),  # JSON rejected
-        ("I cannot help with that.", 0.0),                       # no decodable call
+        ("I cannot help with that.", 0.0),  # no decodable call
     ],
 )
 def test_simple_python_grading(text, expected):

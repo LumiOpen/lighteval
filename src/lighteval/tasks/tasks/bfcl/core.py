@@ -5,15 +5,19 @@ BFCL's real ``ast_checker`` from the ``bfcl-eval`` package and vendors BFCL's
 Python AST decoder (stdlib ``ast`` only — BFCL's ``model_handler.utils`` cannot be
 imported without pulling in tenacity + tree_sitter).
 
-Requires ``bfcl-eval`` (``pip install lighteval[extended_tasks]`` or ``pip install
-bfcl-eval``). For a source checkout of the gorilla repo, set ``BFCL_EVAL_ROOT`` to
-``.../berkeley-function-call-leaderboard`` and it will be added to ``sys.path``.
+Requires BFCL's ``ast_checker`` from the ``bfcl_eval`` package. Note that
+``bfcl-eval`` pins ``numpy==1.26.4``, which conflicts with lighteval's ``numpy>=2``,
+so it usually cannot be pip-installed into the same environment. The recommended
+path is to point ``BFCL_EVAL_ROOT`` at a gorilla
+``berkeley-function-call-leaderboard`` checkout, which is prepended to ``sys.path``.
 """
+
 import ast
 import json
 import os
 import sys
 import types
+
 
 # Optional: point at a gorilla source checkout instead of the installed package.
 _BFCL_EVAL_ROOT = os.environ.get("BFCL_EVAL_ROOT")
@@ -25,6 +29,7 @@ if _BFCL_EVAL_ROOT and _BFCL_EVAL_ROOT not in sys.path:
 # ``convert_func_name`` for the ``underscore_to_dot`` flag, so we stub it: any model
 # resolves to ``underscore_to_dot=False`` and function names pass through unchanged.
 if "bfcl_eval.constants.model_config" not in sys.modules:
+
     class _AnyModelCfg(dict):
         def __getitem__(self, key):
             return types.SimpleNamespace(underscore_to_dot=False)
@@ -37,19 +42,22 @@ if "bfcl_eval.constants.model_config" not in sys.modules:
     sys.modules["bfcl_eval.constants.model_config"] = _stub
 
 try:
-    from bfcl_eval.constants.enums import Language
-    from bfcl_eval.eval_checker.ast_eval.ast_checker import ast_checker
     from bfcl_eval.constants.default_prompts import (
         OUTPUT_FORMAT_MAPPING,
         PARAM_TYPE_MAPPING,
         PROMPT_STYLE_TEMPLATES,
         PROMPT_TEMPLATE_MAPPING,
     )
+    from bfcl_eval.constants.enums import Language
+    from bfcl_eval.eval_checker.ast_eval.ast_checker import ast_checker
 except ImportError as exc:  # pragma: no cover - import-time guard
     raise ImportError(
-        "The BFCL tasks require the 'bfcl-eval' package. Install it with "
-        "`pip install lighteval[extended_tasks]` (or `pip install bfcl-eval`), or set "
-        "BFCL_EVAL_ROOT to a gorilla 'berkeley-function-call-leaderboard' checkout."
+        "The BFCL tasks require BFCL's ast_checker from the 'bfcl_eval' package. "
+        "bfcl-eval pins numpy==1.26.4, which conflicts with lighteval's numpy>=2, so "
+        "it usually cannot be pip-installed into the same environment. Point "
+        "BFCL_EVAL_ROOT at a gorilla 'berkeley-function-call-leaderboard' checkout "
+        "(prepended to sys.path), or install bfcl-eval in an environment whose numpy "
+        "it can satisfy."
     ) from exc
 
 # Per-category language passed to ast_checker for correct type coercion.
@@ -62,7 +70,7 @@ CATEGORY_LANGUAGE = {
 # --------------------------------------------------------------------------
 # Vendored BFCL Python AST decoder (bfcl_eval/model_handler/utils.py).
 # --------------------------------------------------------------------------
-def _resolve_ast_by_type(value):
+def _resolve_ast_by_type(value):  # noqa: C901 - vendored verbatim from BFCL
     if isinstance(value, ast.Constant):
         return "..." if value.value is Ellipsis else value.value
     if isinstance(value, ast.UnaryOp):
@@ -70,10 +78,7 @@ def _resolve_ast_by_type(value):
     if isinstance(value, ast.List):
         return [_resolve_ast_by_type(v) for v in value.elts]
     if isinstance(value, ast.Dict):
-        return {
-            _resolve_ast_by_type(k): _resolve_ast_by_type(v)
-            for k, v in zip(value.keys, value.values)
-        }
+        return {_resolve_ast_by_type(k): _resolve_ast_by_type(v) for k, v in zip(value.keys, value.values)}
     if isinstance(value, ast.NameConstant):
         return value.value
     if isinstance(value, ast.BinOp):
@@ -162,9 +167,7 @@ def build_system_prompt(functions):
         output_format=OUTPUT_FORMAT_MAPPING["python"],
         param_types=PARAM_TYPE_MAPPING["python"],
     )
-    available_tools = style["available_tools"].format(
-        format="json", functions=json.dumps(functions, indent=4)
-    )
+    available_tools = style["available_tools"].format(format="json", functions=json.dumps(functions, indent=4))
     return template.format(
         persona=style["persona"],
         task=style["task"],
