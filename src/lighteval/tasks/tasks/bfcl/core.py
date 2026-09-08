@@ -208,9 +208,14 @@ def grade(text, category, function, ground_truth):
 
     decoded = decode_robust(text or "")
 
-    if category == "irrelevance":
-        ok = not decoded
+    # Relevance/irrelevance (non-live `irrelevance`, live `live_relevance`/`live_irrelevance`)
+    # are decode-only. Check irrelevance first — "irrelevance".endswith("relevance") is True.
+    if category.endswith("irrelevance"):
+        ok = not decoded  # correct iff NO decodable call was emitted
         return (1.0 if ok else 0.0, f"irrelevance: emitted_call={bool(decoded)}")
+    if category.endswith("relevance"):
+        ok = bool(decoded)  # correct iff a decodable call WAS emitted
+        return (1.0 if ok else 0.0, f"relevance: emitted_call={bool(decoded)}")
 
     if decoded is None:
         return (0.0, "decode_failed")

@@ -97,10 +97,11 @@ def bfcl_ast_scorer():
     return score
 
 
-# Data hosted on the HF Hub as a multi-config dataset (one config per category +
-# a merged "nonlive" config, split="train"). Override with BFCL_HF_REPO to point
-# at a mirror (e.g. under an org).
+# Data hosted on the HF Hub as multi-config datasets (one config per category +
+# a merged collection config, split="train"). Override the repos with
+# BFCL_HF_REPO / BFCL_LIVE_HF_REPO to point at mirrors (e.g. under an org).
 _HF_REPO = os.environ.get("BFCL_HF_REPO", "ezosa/bfcl-nonlive")
+_LIVE_HF_REPO = os.environ.get("BFCL_LIVE_HF_REPO", "ezosa/bfcl-live")
 
 _CATEGORIES = [
     "simple_python",
@@ -111,13 +112,22 @@ _CATEGORIES = [
     "simple_javascript",
     "irrelevance",
 ]
+# Live (real user-contributed) categories: 4 AST + relevance/irrelevance.
+_LIVE_CATEGORIES = [
+    "live_simple",
+    "live_multiple",
+    "live_parallel",
+    "live_parallel_multiple",
+    "live_relevance",
+    "live_irrelevance",
+]
 
 
-def _make_config(name, subset):
+def _make_config(name, subset, repo):
     return LightevalTaskConfig(
         name=name,
         prompt_function=None,
-        hf_repo=_HF_REPO,
+        hf_repo=repo,
         hf_subset=subset,
         hf_avail_splits=["train"],
         evaluation_splits=["train"],
@@ -133,4 +143,9 @@ def _make_config(name, subset):
     )
 
 
-TASKS_TABLE = [_make_config(f"bfcl_{cat}", cat) for cat in _CATEGORIES] + [_make_config("bfcl_nonlive", "nonlive")]
+TASKS_TABLE = (
+    [_make_config(f"bfcl_{cat}", cat, _HF_REPO) for cat in _CATEGORIES]
+    + [_make_config("bfcl_nonlive", "nonlive", _HF_REPO)]
+    + [_make_config(f"bfcl_{cat}", cat, _LIVE_HF_REPO) for cat in _LIVE_CATEGORIES]
+    + [_make_config("bfcl_live", "live", _LIVE_HF_REPO)]
+)
