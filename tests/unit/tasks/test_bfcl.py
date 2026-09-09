@@ -50,8 +50,16 @@ def test_simple_python_grading(text, expected):
 
 
 def test_irrelevance_success_when_no_call():
-    assert core.grade("Sorry, no tool fits.", "irrelevance", FUNCTION, None)[0] == 1.0
-    assert core.grade(CALL, "irrelevance", FUNCTION, None)[0] == 0.0
+    # non-live `irrelevance` and live `live_irrelevance`: correct iff NO call emitted
+    for cat in ("irrelevance", "live_irrelevance"):
+        assert core.grade("Sorry, no tool fits.", cat, FUNCTION, None)[0] == 1.0
+        assert core.grade(CALL, cat, FUNCTION, None)[0] == 0.0
+
+
+def test_live_relevance_success_when_call_emitted():
+    # live `live_relevance`: correct iff a call IS emitted (opposite of irrelevance)
+    assert core.grade(CALL, "live_relevance", FUNCTION, None)[0] == 1.0
+    assert core.grade("Sorry, no tool fits.", "live_relevance", FUNCTION, None)[0] == 0.0
 
 
 def test_parallel_requires_all_calls():
