@@ -83,6 +83,9 @@ def main_inspect(monkeypatch):
     log = install_module("inspect_ai.log")
     log.bundle_log_dir = lambda *args, **kwargs: None
 
+    model = install_module("inspect_ai.model")
+    model.GenerateConfig = lambda **kwargs: kwargs
+
     scorer = install_module("inspect_ai.scorer")
     scorer.exact = lambda: None
 
@@ -224,6 +227,7 @@ def test_inspect_task_passes_pinned_revision_to_evaluation_and_fewshot_datasets(
         filter=None,
         solver=None,
         scorer=None,
+        generation_size=512,
         num_fewshots=1,
         sample_to_fewshot=lambda sample: str(sample),
     )
@@ -233,3 +237,24 @@ def test_inspect_task_passes_pinned_revision_to_evaluation_and_fewshot_datasets(
     assert len(calls) == 2
     assert calls[0][1]["revision"] == "pinned-revision"
     assert calls[1][1]["revision"] == "pinned-revision"
+
+
+def test_inspect_task_uses_lighteval_generation_size(main_inspect):
+    config = types.SimpleNamespace(
+        name="generation_size_test",
+        sample_fields=lambda record: record,
+        hf_repo="org/dataset",
+        hf_subset="default",
+        hf_revision=None,
+        evaluation_splits=["test"],
+        filter=None,
+        solver=None,
+        scorer=None,
+        generation_size=512,
+        num_fewshots=0,
+        sample_to_fewshot=None,
+    )
+
+    _, kwargs = main_inspect.get_inspect_ai_task(config)
+
+    assert kwargs["config"] == {"max_tokens": 512}
