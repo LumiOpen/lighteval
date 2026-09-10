@@ -42,6 +42,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.dataset import hf_dataset
 from inspect_ai.log import bundle_log_dir
+from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.solver import generate, solver, system_message
 from pytablewriter import MarkdownTableWriter
@@ -122,7 +123,15 @@ def get_inspect_ai_task(
             system_message("\n\n".join([lighteval_task_config.sample_to_fewshot(sample) for sample in fewshots])),
         )
 
-    return Task(dataset=dataset, solver=solver_steps, scorer=scorers, name=name, epochs=Epochs(epochs, epochs_reducer))
+    config = GenerateConfig(max_tokens=lighteval_task_config.generation_size)
+    return Task(
+        dataset=dataset,
+        solver=solver_steps,
+        scorer=scorers,
+        name=name,
+        epochs=Epochs(epochs, epochs_reducer),
+        config=config,
+    )
 
 
 def _parse_reasoning_tags(reasoning_tags: str | list[tuple[str, str]]) -> list[tuple[str, str]]:
