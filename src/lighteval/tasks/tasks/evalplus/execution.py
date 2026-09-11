@@ -74,11 +74,29 @@ def _swallow_io():
         yield
 
 
+_CHECK_DEF = re.compile(r"^\s*def\s+check\s*\(", re.MULTILINE)
+
+
 def _build_program(sample: dict, generation: str) -> str:
-    """Assemble the program: model code + test harness + a check(entry_point) call."""
+    """Assemble the executable program: model code followed by the test harness.
+
+    The two EvalPlus benchmarks structure their ``test`` field differently:
+
+      - HumanEval+ defines ``def check(candidate): ...`` and must be *invoked*
+        as ``check(entry_point)``.
+      - MBPP+ has no ``check`` wrapper; its assertions call the target function
+        directly at module scope, so they execute as soon as the test runs.
+
+    Appending ``check(entry_point)`` unconditionally raises ``NameError`` for
+    every MBPP+ problem (there is no ``check`` to call), scoring the whole task
+    0. Only emit the invocation when the harness actually defines ``check``.
+    """
     harness = sample.get("test", "")
     entry = sample.get("entry_point", "")
-    return f"{generation}\n\n{harness}\n\ncheck({entry})\n"
+    program = f"{generation}\n\n{harness}\n"
+    if entry and _CHECK_DEF.search(harness):
+        program += f"\ncheck({entry})\n"
+    return program
 
 
 def _unsafe_execute(program: str, timeout: float) -> bool:
