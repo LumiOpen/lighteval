@@ -85,3 +85,49 @@ def test_parallel_requires_all_calls():
     one = "[play(artist='Taylor Swift', duration=20)]"
     assert core.grade(both, "parallel", functions, gt)[0] == 1.0
     assert core.grade(one, "parallel", functions, gt)[0] == 0.0
+
+
+def test_nested_integer_values_are_accepted_for_float_parameters():
+    functions = [
+        {
+            "name": "calculate_area_under_curve",
+            "description": "Calculate the area under a curve.",
+            "parameters": {
+                "type": "dict",
+                "properties": {
+                    "function": {"type": "string"},
+                    "interval": {"type": "array", "items": {"type": "float"}},
+                },
+                "required": ["function", "interval"],
+            },
+        }
+    ]
+    ground_truth = [
+        {
+            "calculate_area_under_curve": {
+                "function": ["x**2", "x^2"],
+                "interval": [[1.0, 3.0]],
+            }
+        }
+    ]
+    call = '[calculate_area_under_curve(function="x^2", interval=[1, 3])]'
+
+    score, explanation = core.grade(call, "simple_python", functions, ground_truth)
+
+    assert score == 1.0
+    assert explanation == ""
+
+
+def test_nested_float_coercion_does_not_change_integer_parameters():
+    schema = {
+        "type": "dict",
+        "properties": {
+            "float_values": {"type": "array", "items": {"type": "float"}},
+            "integer_values": {"type": "array", "items": {"type": "integer"}},
+        },
+    }
+
+    normalized = core._coerce_python_ints_to_floats({"float_values": [1, 2], "integer_values": [1, 2]}, schema)
+
+    assert normalized == {"float_values": [1.0, 2.0], "integer_values": [1, 2]}
+    assert all(type(value) is int for value in normalized["integer_values"])

@@ -176,6 +176,48 @@ def decode_robust(text):
     return None
 
 
+def _coerce_python_ints_to_floats(value, schema):
+    """Apply Python's safe ``int`` to ``float`` widening recursively.
+
+    BFCL's AST checker performs this coercion for scalar float parameters, but
+    not for values nested in arrays or objects. Consequently, a call such as
+    ``interval=[1, 3]`` is rejected for an ``array[float]`` parameter even
+    though the equivalent scalar value would be accepted. Normalize decoded
+    values from the function schema before invoking the checker so nested and
+    scalar parameters follow the same rule.
+    """
+    if not isinstance(schema, dict):
+        return value
+
+    expected_type = schema.get("type")
+    if expected_type == "float" and type(value) is int:
+        return float(value)
+
+    if expected_type in {"array", "list", "tuple"} and isinstance(value, (list, tuple)):
+        item_schema = schema.get("items")
+        converted = [_coerce_python_ints_to_floats(item, item_schema) for item in value]
+        return tuple(converted) if isinstance(value, tuple) else converted
+
+    if expected_type in {"dict", "object"} and isinstance(value, dict):
+        properties = schema.get("properties", {})
+        return {key: _coerce_python_ints_to_floats(item, properties.get(key)) for key, item in value.items()}
+
+    return value
+
+
+def _normalize_python_calls(decoded, functions):
+    """Normalize decoded call arguments using their declared function schemas."""
+    schemas = {function.get("name"): function.get("parameters", {}) for function in functions}
+    normalized = []
+    for call in decoded:
+        normalized_call = {}
+        for function_name, arguments in call.items():
+            function_schema = schemas.get(function_name, {})
+            normalized_call[function_name] = _coerce_python_ints_to_floats(arguments, function_schema)
+        normalized.append(normalized_call)
+    return normalized
+
+
 # --------------------------------------------------------------------------
 # BFCL default python-classic system prompt (formulate_system_prompt for
 # "ret_fmt=python&tool_call_tag=False&func_doc_fmt=json&prompt_fmt=plaintext&style=classic").
@@ -224,6 +266,8 @@ def grade(text, category, function, ground_truth):
 
     bfcl = _load_bfcl()
     language = bfcl["category_language"].get(category, bfcl["Language"].PYTHON)
+    if language == bfcl["Language"].PYTHON:
+        decoded = _normalize_python_calls(decoded, function)
     try:
         result = bfcl["ast_checker"](function, decoded, ground_truth, language, category, "bfcl")
     except Exception as exc:
