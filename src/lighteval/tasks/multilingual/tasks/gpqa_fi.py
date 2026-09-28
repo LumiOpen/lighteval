@@ -24,10 +24,15 @@ https://arxiv.org/abs/2311.12022
 import random
 from string import ascii_uppercase
 
+import numpy as np
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import multiple_choice
 
+from lighteval.metrics.dynamic_metrics import MultilingualExtractiveMatchMetric
 from lighteval.metrics.metrics import Metrics, multichoice_scorer
+from lighteval.metrics.metrics_sample import PassAtK
+from lighteval.metrics.utils.extractive_match_utils import IndicesExtractionConfig
+from lighteval.metrics.utils.metric_utils import SampleLevelMetric, SamplingMethod
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
 from lighteval.tasks.requests import Doc
 from lighteval.utils.language import Language
@@ -40,6 +45,26 @@ GPQA_FI_INSTRUCTION = "Vastaa seuraavaan monivalintakysymykseen. Vastauksesi vii
 GPQA_FI_INSPECT_TEMPLATE = GPQA_FI_INSTRUCTION + "\n\n{question}\n\n{choices}"
 GPQA_FI_INSPECT_SOLVER = [multiple_choice(template=GPQA_FI_INSPECT_TEMPLATE, cache=True)]
 GPQA_FI_INSPECT_SCORER = multichoice_scorer(language=Language.FINNISH)
+
+# Native backend: Finnish counterpart of Metrics.gpqa_instruct_pass_at_k (which extracts with English anchors).
+GPQA_FI_PASS_AT_1 = SampleLevelMetric(
+    metric_name="gpqa_pass@k",
+    sample_level_fn=PassAtK(
+        sample_scoring_function=MultilingualExtractiveMatchMetric(
+            language=Language.FINNISH,
+            gold_extraction_target=[
+                IndicesExtractionConfig(prefix_for_extraction="NativeLetters", try_extract_without_anchor=True)
+            ],
+            pred_extraction_target=[
+                IndicesExtractionConfig(prefix_for_extraction="NativeLetters", try_extract_without_anchor=True)
+            ],
+            precision=6,
+        ),
+    ),
+    category=SamplingMethod.GENERATIVE,
+    corpus_level_fn=np.mean,
+    higher_is_better=True,
+)(sample_params={"k": 1})
 
 
 random.seed(42)
@@ -132,7 +157,7 @@ gpqa_fi_diamond = LightevalTaskConfig(
     few_shots_split=None,
     few_shots_select=None,
     generation_size=32768,
-    metrics=[Metrics.gpqa_instruct_pass_at_k(sample_params={"k": 1})],
+    metrics=[GPQA_FI_PASS_AT_1],
     stop_sequence=[],
     version=2,
 )
