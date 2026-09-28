@@ -111,27 +111,25 @@ def math_scorer():
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def multichoice_scorer():
-    language = Language.ENGLISH
-    gold_extraction_target = (
-        IndicesExtractionConfig(prefix_for_extraction="NativeLetters", try_extract_without_anchor=True),
-    )
-    pred_extraction_target = (
+def multichoice_scorer(language: Language = Language.ENGLISH):
+    """Score letter answers (A, B, C, ...) using the answer anchor of `language` (e.g. "Vastaus:" for Finnish)."""
+    extraction_target = (
         IndicesExtractionConfig(prefix_for_extraction="NativeLetters", try_extract_without_anchor=True),
     )
     fallback_mode = "first_match"
     extraction_mode = "first_match"
     timeout_seconds = 5
 
-    gold_extraction_regexes = get_extraction_regexes_inspect(gold_extraction_target, language)
-    pred_extraction_regexes = get_extraction_regexes_inspect(pred_extraction_target, language)
-
     async def score(state: TaskState, target: Target):
+        # Regexes must cover every choice letter; the default len_choices=1 would only ever match "A".
+        extraction_regexes = get_extraction_regexes_inspect(
+            extraction_target, language, len_choices=len(state.choices)
+        )
         extracted_predictions = extract_target_from_pred(
-            state.output.completion, pred_extraction_regexes, fallback_mode, extraction_mode, timeout_seconds
+            state.output.completion, extraction_regexes, fallback_mode, extraction_mode, timeout_seconds
         )
         extracted_gold = extract_target_from_pred(
-            target.text, gold_extraction_regexes, fallback_mode, extraction_mode, timeout_seconds
+            target.text, extraction_regexes, fallback_mode, extraction_mode, timeout_seconds
         )
         return Score(
             # Correct or Incorrect, used by inspect-ai backend

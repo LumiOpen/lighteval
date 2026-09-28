@@ -25,12 +25,21 @@ import random
 from string import ascii_uppercase
 
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
-from lighteval.metrics.metrics import Metrics
+from lighteval.metrics.metrics import Metrics, multichoice_scorer
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
 from lighteval.tasks.requests import Doc
+from lighteval.utils.language import Language
+
+
+GPQA_FI_INSTRUCTION = "Vastaa seuraavaan monivalintakysymykseen. Vastauksesi viimeisen rivin tulee olla muotoa: 'Vastaus: $KIRJAIN' (ilman lainausmerkkejä), jossa KIRJAIN on A, B, C tai D. Ajattele vaihe vaiheelta ennen vastaamista."
+
+# inspect-ai backend: `multiple_choice` renders {choices} as "A) ...\nB) ...", matching gpqa_fi_instruct_prompt.
+# Its built-in `choice` scorer only parses English "ANSWER: X", so pair it with a Finnish-aware scorer.
+GPQA_FI_INSPECT_TEMPLATE = GPQA_FI_INSTRUCTION + "\n\n{question}\n\n{choices}"
+GPQA_FI_INSPECT_SOLVER = [multiple_choice(template=GPQA_FI_INSPECT_TEMPLATE, cache=True)]
+GPQA_FI_INSPECT_SCORER = multichoice_scorer(language=Language.FINNISH)
 
 
 random.seed(42)
@@ -42,7 +51,7 @@ def record_to_sample(record):
     choices.insert(gold_index, record["Correct Answer"])
     return Sample(
         input=record["Question"].strip(),
-        choices=choices,
+        choices=[choice.strip() for choice in choices],
         target=ascii_uppercase[gold_index],
     )
 
@@ -52,7 +61,7 @@ def gpqa_fi_prompt(line, task_name: str = None):
     choices = [line["Incorrect Answer 1"], line["Incorrect Answer 2"], line["Incorrect Answer 3"]]
     choices.insert(gold_index, line["Correct Answer"])
 
-    instruction = "Vastaa seuraavaan monivalintakysymykseen. Vastauksesi viimeisen rivin tulee olla muotoa: 'Vastaus: $KIRJAIN' (ilman lainausmerkkejä), jossa KIRJAIN on A, B, C tai D. Ajattele vaihe vaiheelta ennen vastaamista.\n\n"
+    instruction = GPQA_FI_INSTRUCTION + "\n\n"
 
     query = f"Kysymys: {line['Question']}\n"
     query += "".join([f"{key}. {choice}\n" for key, choice in zip(ascii_uppercase, choices)])
@@ -70,7 +79,7 @@ def gpqa_fi_instruct_prompt(line, task_name: str = None):
     gold_index = random.randint(0, 3)
     choices = [line["Incorrect Answer 1"], line["Incorrect Answer 2"], line["Incorrect Answer 3"]]
     choices.insert(gold_index, line["Correct Answer"])
-    instruction = "Vastaa seuraavaan monivalintakysymykseen. Vastauksesi viimeisen rivin tulee olla muotoa: 'Vastaus: $KIRJAIN' (ilman lainausmerkkejä), jossa KIRJAIN on A, B, C tai D. Ajattele vaihe vaiheelta ennen vastaamista."
+    instruction = GPQA_FI_INSTRUCTION
     query_template = "{Instruction}\n\n{Question}\n\nA) {A}\nB) {B}\nC) {C}\nD) {D}"
     query = query_template.format(
         A=choices[0].strip(),
@@ -95,8 +104,8 @@ gpqa_fi = LightevalTaskConfig(
     name="gpqa-fi",
     prompt_function=gpqa_fi_prompt,
     sample_fields=record_to_sample,
-    solver=[multiple_choice(cache=True)],
-    scorer=choice(),
+    solver=GPQA_FI_INSPECT_SOLVER,
+    scorer=GPQA_FI_INSPECT_SCORER,
     hf_repo="LumiOpen/GPQA-FI",
     hf_subset="default",
     hf_avail_splits=["train"],
@@ -106,7 +115,7 @@ gpqa_fi = LightevalTaskConfig(
     generation_size=1,
     metrics=[Metrics.loglikelihood_acc],
     stop_sequence=["\n"],
-    version=0,
+    version=1,
 )
 
 # Instruct / generative evaluation (matches English GPQA diamond pattern)
@@ -114,8 +123,8 @@ gpqa_fi_diamond = LightevalTaskConfig(
     name="gpqa-fi:diamond",
     prompt_function=gpqa_fi_instruct_prompt,
     sample_fields=record_to_sample,
-    solver=[multiple_choice(cache=True)],
-    scorer=choice(),
+    solver=GPQA_FI_INSPECT_SOLVER,
+    scorer=GPQA_FI_INSPECT_SCORER,
     hf_repo="LumiOpen/GPQA-FI",
     hf_subset="default",
     hf_avail_splits=["train"],
@@ -125,7 +134,7 @@ gpqa_fi_diamond = LightevalTaskConfig(
     generation_size=32768,
     metrics=[Metrics.gpqa_instruct_pass_at_k(sample_params={"k": 1})],
     stop_sequence=[],
-    version=1,
+    version=2,
 )
 
 TASKS_TABLE = [gpqa_fi, gpqa_fi_diamond]
