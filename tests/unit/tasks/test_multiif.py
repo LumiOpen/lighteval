@@ -105,9 +105,10 @@ def test_language_variants_and_bad_input():
         record_to_sample(record)
 
 
-def test_english_selection_and_language_group_expansion():
+@pytest.mark.parametrize("task_name", ["multiif-en", "multiif-es"])
+def test_language_selection_and_group_expansion(task_name):
     registry = object.__new__(Registry)
-    assert registry._get_full_task_list_from_input_string("multiif-en") == ["multiif-en"]
+    assert registry._get_full_task_list_from_input_string(task_name) == [task_name]
     assert set(registry._get_full_task_list_from_input_string("multiif")) == {
         "multiif-en",
         "multiif-zh",

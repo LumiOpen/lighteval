@@ -6,6 +6,13 @@ conversations; 909, 909 and 896 scored prompts across the three turns).
 per language. Individual tasks are `multiif-en`, `multiif-zh`, `multiif-fr`,
 `multiif-hi`, `multiif-it`, `multiif-pt`, `multiif-ru` and `multiif-es`.
 
+| Task name | Scope |
+|---|---|
+| `multiif` | All eight languages, with separate results per language |
+| `multiif-en` | English only |
+| `multiif-es` | Spanish only |
+| `multiif-<language>` | Only the specified supported language |
+
 Run with the Inspect backend.
 For a standalone smoke test using Inspect's mock model:
 
