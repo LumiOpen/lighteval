@@ -22,7 +22,9 @@
 
 import json
 import os
+from numbers import Number
 
+import numpy as np
 import pytest
 
 from lighteval.metrics import apply_metric
@@ -38,6 +40,50 @@ from lighteval.utils.utils import as_list
 
 
 PATH_TO_HARNESS_METRICS = os.path.join(os.path.dirname(__file__), "reference_scores/harness_metrics.json")
+
+
+def assert_metric_equal(result, reference, error_msg=""):
+    """Compare nested corpus inputs with approximate numeric leaves and exact structure."""
+    if isinstance(reference, dict):
+        assert isinstance(result, dict), error_msg
+        assert result.keys() == reference.keys(), error_msg
+        for key in reference:
+            assert_metric_equal(result[key], reference[key], error_msg)
+    elif isinstance(reference, list):
+        assert isinstance(result, list), error_msg
+        assert len(result) == len(reference), error_msg
+        for res, ref in zip(result, reference):
+            assert_metric_equal(res, ref, error_msg)
+    elif isinstance(reference, Number):
+        assert result == pytest.approx(reference, rel=1e-8), error_msg
+    else:
+        assert result == reference, error_msg
+
+
+@pytest.mark.parametrize(
+    "result, reference",
+    [
+        ([{"golds": [0], "preds": np.int64(1)}], [{"golds": [0], "preds": 1}]),
+        ({"scores": [[1.0 + 1e-9], []], "text": "answer"}, {"scores": [[1.0], []], "text": "answer"}),
+    ],
+)
+def test_assert_metric_equal_nested(result, reference):
+    assert_metric_equal(result, reference)
+
+
+@pytest.mark.parametrize(
+    "result, reference",
+    [
+        ({"golds": [0], "preds": 2}, {"golds": [0], "preds": 1}),
+        ({"scores": [1.0, 2.0]}, {"scores": [1.0]}),
+        ({"scores": [1.0]}, {"scores": [1.0], "extra": 0}),
+        ({"scores": 1.0}, {"scores": [1.0]}),
+        ({"text": "wrong"}, {"text": "answer"}),
+    ],
+)
+def test_assert_metric_equal_rejects_mismatches(result, reference):
+    with pytest.raises(AssertionError):
+        assert_metric_equal(result, reference)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
@@ -120,20 +166,4 @@ def test_model_prediction(prompt_inputs: tuple[str, str, list]):  # noqa: C901
                 cur_result_list = as_list(metric_result[key])
             cur_ref_list = as_list(metric_reference[key])
 
-            # item wise comparison of lists
-            if isinstance(cur_result_list[0], list):
-                for res, ref in zip(cur_result_list, cur_ref_list):
-                    try:
-                        assert res == pytest.approx(ref, rel=1e-8), error_msg
-                    except Exception:
-                        assert False, (
-                            key + "\n" + str(cur_result_list) + "\n" + str(cur_ref_list) + "\n" + task_name + "\n"
-                        )
-            else:
-                try:
-                    assert cur_result_list == pytest.approx(cur_ref_list, rel=1e-8), error_msg
-                except Exception:
-                    # assert False, error_msg + "\n" + str(e)
-                    assert False, (
-                        key + "\n" + str(cur_result_list) + "\n" + str(cur_ref_list) + "\n" + task_name + "\n"
-                    )
+            assert_metric_equal(cur_result_list, cur_ref_list, error_msg)
