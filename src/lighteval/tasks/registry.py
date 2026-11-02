@@ -168,6 +168,10 @@ class Registry:
             tasks_list = tasks.split(",")
 
         task_groups = {}
+        if "multiif" in tasks_list:
+            from lighteval.tasks.tasks.multiif.main import TASKS_TABLE as multiif_tasks
+
+            task_groups["multiif"] = [config.name for config in multiif_tasks]
         expanded_tasks_list: list[str] = []
         for maybe_task_group in tasks_list:
             # We either expand the group (in case it's a group name), or we keep it as is (in case it's a task name or superset name)

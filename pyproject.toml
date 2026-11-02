@@ -9,6 +9,10 @@ ignore = ["E501", "D100", "D101", "D102", "D103", "D104", "D415", "D105", "DOC50
 select = ["C", "E", "F", "I", "W", "CPY", "D417", "DOC"]
 preview = true
 
+[tool.ruff.lint.per-file-ignores]
+# Preserve the vendored upstream benchmark checks verbatim for scoring parity.
+"src/lighteval/tasks/tasks/multiif/instructions.py" = ["ALL"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
@@ -17,6 +21,7 @@ lines-after-imports = 2
 known-first-party = ["lighteval"]
 
 [tool.ruff.format]
+exclude = ["src/lighteval/tasks/tasks/multiif/instructions.py"]
 quote-style = "double" # Like Black, use double quotes for strings.
 indent-style = "space" # Like Black, indent with spaces, rather than tabs.
 skip-magic-trailing-comma = false # Like Black, respect magic trailing commas.
@@ -116,6 +121,7 @@ extended_tasks = [
   "openai>1.87", # llm as a judge using openai models
   "tiktoken",
   "emoji", "spacy", "syllapy",  # ifbench
+  "pythainlp", # Multi-IF multilingual instruction checks
   "evaluate", # slr_bench
 ]
 s3 = ["s3fs"]
