@@ -6,6 +6,7 @@ import pytest
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import SampleScore, Score, Target
 
+from lighteval.tasks.registry import Registry
 from lighteval.tasks.tasks.multiif.main import (
     TASKS_TABLE,
     _check_response,
@@ -95,11 +96,25 @@ def test_scorer_scores_every_generated_turn_and_rejects_missing_answers():
 def test_language_variants_and_bad_input():
     tasks = {task.name: task for task in TASKS_TABLE}
     sample = record_to_sample(_record())
-    assert tasks["multiif"].filter(sample)
-    assert tasks["multiif_en"].filter(sample)
-    assert not tasks["multiif_fr"].filter(sample)
-    assert tasks["multiif_all"].filter is None
+    assert tasks["multiif-en"].filter(sample)
+    assert not tasks["multiif-fr"].filter(sample)
+    assert all(task.filter is not None for task in TASKS_TABLE)
     record = _record()
     record["turn_1_kwargs"] = "[]"
     with pytest.raises(ValueError, match="Invalid Multi-IF turn"):
         record_to_sample(record)
+
+
+def test_english_selection_and_language_group_expansion():
+    registry = object.__new__(Registry)
+    assert registry._get_full_task_list_from_input_string("multiif-en") == ["multiif-en"]
+    assert set(registry._get_full_task_list_from_input_string("multiif")) == {
+        "multiif-en",
+        "multiif-zh",
+        "multiif-fr",
+        "multiif-ru",
+        "multiif-hi",
+        "multiif-it",
+        "multiif-pt",
+        "multiif-es",
+    }

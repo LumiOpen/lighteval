@@ -1,11 +1,12 @@
 # Multi-IF
 
-`multiif` and `multiif_en` match the historic English evaluation (909
+`multiif-en` evaluates the English subset (909
 conversations; 909, 909 and 896 scored prompts across the three turns).
-`multiif_all` evaluates all eight languages. Individual variants are `en`,
-`zh`, `fr`, `hi`, `it`, `pt`, `ru` and `es`.
+`multiif` launches all eight language tasks, with results reported separately
+per language. Individual tasks are `multiif-en`, `multiif-zh`, `multiif-fr`,
+`multiif-hi`, `multiif-it`, `multiif-pt`, `multiif-ru` and `multiif-es`.
 
-Run with the Inspect backend (the shared TW wrapper accepts `TASK=multiif`).
+Run with the Inspect backend.
 For a standalone smoke test using Inspect's mock model:
 
 ```python
@@ -13,7 +14,7 @@ from inspect_ai import eval
 from lighteval.main_inspect import get_inspect_ai_task
 from lighteval.tasks.registry import Registry
 
-config = Registry(tasks="multiif").task_to_configs["multiif"][0]
+config = Registry(tasks="multiif-en").task_to_configs["multiif-en"][0]
 eval(get_inspect_ai_task(config), model="mockllm/model", limit=2)
 ```
 
@@ -45,8 +46,7 @@ NLTK's English sentence check also requires `punkt_tab`:
 python -m nltk.downloader punkt_tab
 ```
 
-The task default is the original 1024-token cap. Historic runs used temperature
-0.6 and top_p 0.9. Set generation parameters explicitly when comparing runs;
-the shared TW wrappers use their normal checkpoint-aware reasoning settings
-and 32768-token cap. Token-capped smoke results demonstrate pipeline operation,
-and should not be used as benchmark-quality scores.
+The task default is the original 1024-token cap. The original evaluator used
+temperature 0.6 and top_p 0.9. Set generation parameters explicitly when
+comparing runs. Smoke results demonstrate pipeline operation and should not
+be used as benchmark-quality scores.

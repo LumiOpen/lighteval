@@ -162,11 +162,10 @@ def _task(name, language=None):
     )
 
 
-# The unqualified task matches historic English-only runs. Explicit variants
-# make the multilingual dataset available without silently changing that scope.
-TASKS_TABLE = [_task("multiif", "English"), _task("multiif_all")]
-TASKS_TABLE += [
-    _task(f"multiif_{code}", language)
+# Each language is scored independently. The registry expands `multiif` into
+# these language tasks; English-only evaluation uses `multiif-en`.
+TASKS_TABLE = [
+    _task(f"multiif-{code}", language)
     for code, language in {
         "en": "English",
         "zh": "Chinese",
