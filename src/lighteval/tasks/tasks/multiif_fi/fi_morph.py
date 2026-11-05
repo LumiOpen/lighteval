@@ -8,8 +8,11 @@ matching via simplemma, plus Finnish sentence segmentation.
 Used by multiif_fi.instructions to override keyword:existence / keyword:frequency /
 keyword:forbidden_words checking and sentence counting.
 """
+
 import re
+
 import simplemma
+
 
 _WORD_RE = re.compile(r"\w+", re.UNICODE)
 
@@ -46,7 +49,7 @@ def keyword_count(text: str, keyword: str) -> int:
     # multi-word: count contiguous lemma-sequence matches
     n = 0
     for i in range(len(toks) - len(tl) + 1):
-        if toks[i:i + len(tl)] == tl:
+        if toks[i : i + len(tl)] == tl:
             n += 1
     return n
 
@@ -56,8 +59,30 @@ def keyword_present(text: str, keyword: str) -> bool:
 
 
 # ---- Finnish sentence segmentation -------------------------------------------------
-_FI_ABBREV = {"esim", "ns", "mm", "ym", "yms", "jne", "ts", "vrt", "n", "nk", "ao",
-              "ko", "ml", "mrd", "milj", "tri", "prof", "s", "v", "nro", "oy", "ry"}
+_FI_ABBREV = {
+    "esim",
+    "ns",
+    "mm",
+    "ym",
+    "yms",
+    "jne",
+    "ts",
+    "vrt",
+    "n",
+    "nk",
+    "ao",
+    "ko",
+    "ml",
+    "mrd",
+    "milj",
+    "tri",
+    "prof",
+    "s",
+    "v",
+    "nro",
+    "oy",
+    "ry",
+}
 _SENT_END = re.compile(r"[.!?…]+[\")'”’\]]*\s+")
 
 
@@ -69,6 +94,7 @@ def count_sentences_fi(text: str) -> int:
         return 0
     try:
         import nltk
+
         try:
             tok = nltk.data.load("tokenizers/punkt/finnish.pickle")
         except Exception:

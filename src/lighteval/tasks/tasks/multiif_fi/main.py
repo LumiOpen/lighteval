@@ -31,10 +31,10 @@ from lighteval.tasks.lighteval_task import LightevalTaskConfig
 
 # Reuse the language-agnostic pieces from the English task.
 from lighteval.tasks.tasks.multiif.main import (
-    record_to_sample,
-    multiif_conversation,
     aggregate_turn_scores,
     multiif_accuracy,
+    multiif_conversation,
+    record_to_sample,
 )
 
 

@@ -13,10 +13,12 @@ Finnish adaptations:
   * length_constraints:number_sentences -> Finnish sentence segmentation.
   * language:response_language works unchanged (langdetect; LANGUAGE_CODES already has fi).
 """
+
 import langdetect
 
 from lighteval.tasks.tasks.multiif import instructions as _en
 from lighteval.tasks.tasks.multiif_fi import fi_morph
+
 
 _REL = _en._COMPARISON_RELATION  # ("less than", "at least")
 
