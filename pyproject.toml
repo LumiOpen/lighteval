@@ -122,6 +122,7 @@ extended_tasks = [
   "tiktoken",
   "emoji", "spacy", "syllapy",  # ifbench
   "pythainlp", # Multi-IF multilingual instruction checks
+  "simplemma", # multiif-fi Finnish lemmatised keyword matching
   "evaluate", # slr_bench
 ]
 s3 = ["s3fs"]
